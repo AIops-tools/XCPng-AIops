@@ -155,6 +155,9 @@ def vm_health_rca(conn: Any, vm_id: str | None = None) -> dict:
 
     severity_rank = {"high": 0, "medium": 1, "low": 2}
     findings.sort(key=lambda f: severity_rank.get(f["severity"], 3))
+    # State the priority in the payload: a consumer — notably a smaller local
+    # model — should not have to infer urgency from list position.
+    findings = [{**f, "rank": i} for i, f in enumerate(findings, 1)]
     return {
         "vmsAnalyzed": len(vms),
         "inputTruncated": input_truncated,
