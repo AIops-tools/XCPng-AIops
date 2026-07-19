@@ -17,7 +17,7 @@ xcpng-aiops mcp                     # start the MCP server (stdio)
 ## VMs
 
 ```bash
-xcpng-aiops vm list [--state Running|Halted|Paused|Suspended] [--pool <pool_uuid>]
+xcpng-aiops vm list [--state Running|Halted|Paused|Suspended] [--pool <pool_uuid>] [--limit 200]
 xcpng-aiops vm get <vm_uuid>
 xcpng-aiops vm stats <vm_uuid> [--granularity seconds|minutes|hours|days]
 xcpng-aiops vm health-rca [<vm_uuid>]          # RCA (fleet-wide when uuid omitted)
@@ -49,9 +49,9 @@ xcpng-aiops pool posture [<pool_uuid>]   # RCA: patches / reboots / version skew
 ## Storage (SRs / VDIs)
 
 ```bash
-xcpng-aiops sr list [--pool <pool_uuid>]
+xcpng-aiops sr list [--pool <pool_uuid>] [--limit 200]
 xcpng-aiops sr get <sr_uuid>
-xcpng-aiops sr vdis [--sr <sr_uuid>] [--orphaned-only]
+xcpng-aiops sr vdis [--sr <sr_uuid>] [--orphaned-only] [--limit 200]
 xcpng-aiops sr usage-rca                 # RCA: near-full / overcommit / orphaned VDIs
 xcpng-aiops sr rescan <sr_uuid> [--dry-run]
 ```
@@ -59,7 +59,7 @@ xcpng-aiops sr rescan <sr_uuid> [--dry-run]
 ## Snapshots
 
 ```bash
-xcpng-aiops snapshot list [--vm <vm_uuid>]
+xcpng-aiops snapshot list [--vm <vm_uuid>] [--limit 200]
 xcpng-aiops snapshot create <vm_uuid> <name> [--dry-run]
 xcpng-aiops snapshot delete <snapshot_uuid> [--dry-run]    # double confirm, IRREVERSIBLE
 xcpng-aiops snapshot revert <snapshot_uuid> [--dry-run]    # double confirm, IRREVERSIBLE
@@ -68,10 +68,10 @@ xcpng-aiops snapshot revert <snapshot_uuid> [--dry-run]    # double confirm, IRR
 ## Backups & tasks
 
 ```bash
-xcpng-aiops backup jobs
+xcpng-aiops backup jobs [--limit 200]
 xcpng-aiops backup logs [--limit 50]
 xcpng-aiops backup failure-rca [--limit 50]   # RCA: vdi-chain / quiesce / transport / storage-full
-xcpng-aiops task list [--status pending|success|failure]
+xcpng-aiops task list [--status pending|success|failure] [--limit 200]
 ```
 
 ## Secrets (encrypted store)
@@ -95,3 +95,12 @@ xcpng-aiops secret rotate-password                  # re-encrypt under a new mas
 | `XCPNG_MAX_TOOL_CALLS` / `XCPNG_MAX_TOOL_SECONDS` | Budget ceilings. |
 | `XCPNG_RUNAWAY_MAX` / `XCPNG_RUNAWAY_WINDOW_SEC` | Runaway-loop circuit breaker. |
 | `XCPNG_<TARGET>_TOKEN` | Legacy plaintext token fallback (deprecated). |
+
+## Truncation and read-only mode
+
+Listing commands cap their output at `--limit` (default 200) and print
+`… showing N of more … — truncated, re-run with a higher --limit` when there
+was more; the JSON itself carries `"truncated": true`.
+
+`export XCPNG_READ_ONLY=1` makes every write command refuse (and removes the
+write tools from the MCP server entirely). See `agent-guardrails.md`.

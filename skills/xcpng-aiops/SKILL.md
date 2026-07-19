@@ -1,10 +1,16 @@
 ---
 name: xcpng-aiops
+slug: xcpng-aiops
+displayName: "XCP-ng AIops"
+summary: "Governed XCP-ng ops via Xen Orchestra — 29 MCP tools with audit, budget, undo guards."
+license: MIT
+homepage: https://github.com/AIops-tools/XCPng-AIops
+tags: [aiops, mcp, governance, xcpng]
 description: >
   Use this skill whenever the user needs to operate an XCP-ng virtualization fleet through Xen Orchestra — a one-shot fleet health overview; VMs (list/get/RRD stats), hosts, pools, storage repositories (SRs) and VDIs, VM snapshots, backup jobs and run logs, XO tasks; four RCA analyses (VM health, SR usage, backup-job failures, pool patch & HA posture); and governed writes (VM start/stop/reboot/migrate, snapshot create/delete/revert, SR rescan).
   Always use this skill for "xcp-ng vm", "xen orchestra", "xo backup failed", "sr full", "orphaned vdi", "xcp-ng snapshot", "migrate vm to another host", "xcp-ng patches", or "pool HA" when the context is explicitly XCP-ng / Xen Orchestra / a Xen-based fleet.
   Do NOT use when the target is not an XCP-ng fleet managed by Xen Orchestra — other hypervisors (Do NOT use for Proxmox VE — use proxmox-aiops), NAS/storage appliances, backup software suites, container clusters, and network devices are out of scope (negative routing hints only).
-  Preview — common XCP-ng-via-XO operations with a built-in governance harness (audit, policy, token budget, undo, risk-tiers). Mock-validated only, not yet verified against a live Xen Orchestra instance.
+  Common XCP-ng-via-XO operations with a built-in governance harness (audit, policy, token budget, undo, risk-tiers).
 installer:
   kind: uv
   package: xcpng-aiops
@@ -13,23 +19,23 @@ allowed-tools:
   - Bash
 metadata: {"openclaw":{"requires":{"env":["XCPNG_AIOPS_CONFIG"],"bins":["xcpng-aiops"],"config":["~/.xcpng-aiops/config.yaml","~/.xcpng-aiops/secrets.enc"]},"optional":{"env":["XCPNG_AIOPS_MASTER_PASSWORD"]},"primaryEnv":"XCPNG_AIOPS_CONFIG","homepage":"https://github.com/AIops-tools/XCPng-AIops","emoji":"🖥️","os":["macos","linux"]}}
 compatibility: >
-  Standalone, self-governed XCP-ng operations via Xen Orchestra's REST API /rest/v0 (preview). REQUIRES a Xen Orchestra instance (XO from sources or the Xen Orchestra Appliance, 5.x) — XO is the management plane; direct per-host XAPI access is out of scope for v0.1. The governance harness (audit, policy, token/runaway budget, undo, risk-tiers) is bundled in the package — no external skill-family dependency.
+  Standalone, self-governed XCP-ng operations via Xen Orchestra's REST API /rest/v0. REQUIRES a Xen Orchestra instance (XO from sources or the Xen Orchestra Appliance, 5.x) — XO is the management plane; direct per-host XAPI access is out of scope for v0.1. The governance harness (audit, policy, token/runaway budget, undo, risk-tiers) is bundled in the package — no external skill-family dependency.
   All write operations are audited to a local SQLite DB under ~/.xcpng-aiops/ (relocatable via XCPNG_AIOPS_HOME).
   Credentials: Each XO target's personal authentication token is stored ENCRYPTED in ~/.xcpng-aiops/secrets.enc (Fernet/AES-128 + scrypt-derived key) — never plaintext on disk. Run 'xcpng-aiops init' to onboard, or 'xcpng-aiops secret set <target>' to add one (create the token in the XO UI: user menu → Personal tokens, or `xo-cli --createToken`). The store is unlocked by a master password from XCPNG_AIOPS_MASTER_PASSWORD (non-interactive/MCP/CI) or an interactive prompt (CLI on a TTY). A legacy plaintext env var XCPNG_<TARGET_NAME_UPPER>_TOKEN is still honoured as a fallback with a deprecation warning (migrate with 'xcpng-aiops secret migrate'). The token is sent in headers (Authorization: Bearer + authenticationToken cookie) at request time and held only in memory; tokens are never logged or echoed.
   Destructive operations (snapshot delete/revert, vm stop/reboot/migrate) require double confirmation at the CLI layer and support --dry-run; every write MCP tool takes a dry_run preview (no API call, no undo recorded). All write tools pass through the @governed_tool decorator (pre-check + budget guard + audit + risk-tier gate). vm_start↔vm_stop record each other as inverses; vm_migrate records migrating back to the captured source host; snapshot_create records deleting the REAL snapshot id XO returned; snapshot_delete and snapshot_revert are high-risk and irreversible (capture BEFORE state, record no undo).
   Webhooks: none — no outbound network calls beyond the configured Xen Orchestra REST API endpoint.
   SSL: verify_ssl defaults to true; disable only for self-signed lab certificates.
   Transitive dependencies: httpx (HTTP client) and the MCP SDK. No post-install scripts or background services.
-  PREVIEW: mock-validated only; endpoint paths modelled against the documented Xen Orchestra REST /rest/v0 API need live verification.
+  Verification status: mock-validated; no recorded end-to-end run against a live Xen Orchestra instance yet. Endpoint paths are modelled against the documented Xen Orchestra REST /rest/v0 API and need live verification — action names may differ across XO releases. See docs/VERIFICATION.md.
 ---
 
-# XCP-ng AIops (preview)
+# XCP-ng AIops
 
 > **Disclaimer**: This is a community-maintained open-source project and is **not affiliated with, endorsed by, or sponsored by Vates, the XCP-ng project, or the Xen Orchestra project.** "XCP-ng", "Xen Orchestra", and "Xen" are trademarks of their owners. Source code is publicly auditable at [github.com/AIops-tools/XCPng-AIops](https://github.com/AIops-tools/XCPng-AIops) under the MIT license.
 
-Governed XCP-ng operations via **Xen Orchestra's REST API** — **27 MCP tools**, every one wrapped with the bundled `@governed_tool` harness: a local unified audit log under `~/.xcpng-aiops/`, policy engine, token/runaway budget guard, undo-token recording, and graduated-autonomy risk tiers. The XO authentication token is stored **encrypted** (`~/.xcpng-aiops/secrets.enc`, Fernet + scrypt) — never plaintext on disk.
+Governed XCP-ng operations via **Xen Orchestra's REST API** — **29 MCP tools**, every one wrapped with the bundled `@governed_tool` harness: a local unified audit log under `~/.xcpng-aiops/`, policy engine, token/runaway budget guard, undo-token recording, and graduated-autonomy risk tiers. The XO authentication token is stored **encrypted** (`~/.xcpng-aiops/secrets.enc`, Fernet + scrypt) — never plaintext on disk.
 
-> **Requires a Xen Orchestra instance** (5.x with `/rest/v0`) — XO is the management plane; per-host XAPI is out of scope for v0.1. **Standalone**: the governance harness is bundled in the package (`xcpng_aiops.governance`) — xcpng-aiops has no external skill-family dependency. **Preview / mock-only**: common operations, not yet exhaustive, not yet validated against a live XO.
+> **Requires a Xen Orchestra instance** (5.x with `/rest/v0`) — XO is the management plane; per-host XAPI is out of scope for v0.1. **Standalone**: the governance harness is bundled in the package (`xcpng_aiops.governance`) — xcpng-aiops has no external skill-family dependency. Coverage is common operations, not exhaustive; verification status and the live-run checklist are in `docs/VERIFICATION.md`.
 
 ## What This Skill Does
 
@@ -41,7 +47,7 @@ Governed XCP-ng operations via **Xen Orchestra's REST API** — **27 MCP tools**
 | **Hosts** | list, get | 2 | 2 read |
 | **Pools** | list, get, patch & HA posture RCA | 3 | 3 read |
 | **SRs / VDIs** | list, get, VDI list (orphan filter), usage RCA | 4 | 4 read |
-| | rescan | 1 | 1 write (low) |
+| | rescan | 1 | 1 write (medium) |
 | **Snapshots** | list | 1 | 1 read |
 | | create (medium), delete (high), revert (high) | 3 | 3 write |
 | **Backups** | jobs, run logs, failure RCA | 3 | 3 read |
@@ -78,25 +84,54 @@ xcpng-aiops doctor     # XO reachability + token validity + pool count
 
 ## Common Workflows
 
-### Snapshot a VM before a change, then roll back if needed
+Each recipe starts from a read or an RCA and ends in a governed write. Every
+write accepts `--dry-run`; destructive ones also double-confirm.
 
-1. `xcpng-aiops vm list` → confirm the VM uuid
-2. `xcpng-aiops snapshot create <vm-uuid> pre-change` → XO returns the new snapshot's id; an inverse `snapshot_delete` for THAT id is recorded
-3. Make your change; if it went wrong: `xcpng-aiops snapshot revert <snapshot-uuid>` (double confirm — replaces current state, IRREVERSIBLE)
-4. When done: `xcpng-aiops snapshot delete <snapshot-uuid> --dry-run` → preview; then without `--dry-run` (double confirm — IRREVERSIBLE, captures BEFORE state, no undo)
+### 1. "Patch a pool without breaking live migration"
 
-### Backup job failing every night
+1. `xcpng-aiops overview` → fleet snapshot: pools, hosts, VMs by state, SRs near full, recent backup failures.
+2. `xcpng-aiops pool posture` → the RCA: hosts missing patches, hosts pending reboot, **version skew** across the pool's hosts, and multi-host pools without HA.
+3. `xcpng-aiops host missing-patches <host-uuid>` → what exactly is outstanding on the host you plan to take first.
+4. `xcpng-aiops vm list --state Running` → the VMs that must move off that host.
+5. For each: `xcpng-aiops vm migrate <vm-uuid> <dest-host-uuid> --dry-run`, then re-run for real (double confirm; the REAL source host is captured before the move and the inverse "migrate back" is recorded).
+6. `xcpng-aiops undo list` → confirm a migrate-back token exists for every VM you moved, before you touch the host.
+7. Patch and reboot the host in XO, then `xcpng-aiops pool posture` again to confirm the skew cleared.
 
-1. `xcpng-aiops backup failure-rca` → failures grouped by job, classified: vdi-chain / quiesce / transport / storage-full
-2. vdi-chain? Let the coalesce finish, then `xcpng-aiops sr rescan <sr-uuid>`; avoid stacking snapshots
-3. transport? Test the backup remote in the XO UI (Settings → Remotes)
-4. `xcpng-aiops backup logs -n 20` → confirm the next run went green
+**Failure branch**: if `pool posture` reports version skew *before* you start, stop — live migration between mismatched host versions can be refused or unsafe. Bring the hosts to a common version first. If a migration fails mid-run, do not retry blindly: `xcpng-aiops vm get <vm-uuid>` to see where the VM actually landed, and `xcpng-aiops task list` for the failing XO task, since a half-finished migrate leaves the VM on one side or the other.
 
-### Evacuate a host for maintenance
+### 2. "This VM keeps going unhealthy"
 
-1. `xcpng-aiops pool posture` → check patch/reboot state and version skew first
-2. `xcpng-aiops vm list --state Running` → VMs on the host
-3. `xcpng-aiops vm migrate <vm-uuid> <dest-host-uuid>` per VM (double confirm; undo = migrate back to the captured source host)
+1. `xcpng-aiops vm health-rca` → findings with cause + action: halted unexpectedly (auto-poweron / HA restart priority set), paused or suspended VMs, running VMs without guest tools, CPU/memory pressure from RRD stats.
+2. `xcpng-aiops vm get <vm-uuid>` → the VM's configuration and current power state.
+3. `xcpng-aiops vm stats <vm-uuid>` → the RRD series behind a pressure finding, so you confirm sustained pressure rather than one spike.
+4. If it is halted and should be running: `xcpng-aiops vm start <vm-uuid>` (the inverse `vm_stop` is recorded).
+5. If it is wedged and needs a bounce: `xcpng-aiops vm reboot <vm-uuid> --dry-run`, then for real (double confirm; add `--force` only for a hard reboot — **no undo** either way).
+6. `xcpng-aiops vm health-rca` again to confirm the finding cleared.
+
+**Failure branch**: if a clean shutdown or clean reboot hangs, the finding "no guest tools" is usually the real cause — clean actions need the guest agent. Do not escalate straight to `--force`; a hard action risks filesystem damage. Snapshot first (recipe 3), then use `--force` deliberately.
+
+### 3. "Snapshot before a risky change, and roll back cleanly"
+
+1. `xcpng-aiops vm list` → confirm the exact VM uuid.
+2. `xcpng-aiops sr usage-rca` → make sure the SR has room; snapshots grow it, and a snapshot on a near-full SR is how you take the pool down.
+3. `xcpng-aiops snapshot create <vm-uuid> pre-change` → XO returns the new snapshot's id, and an inverse `snapshot_delete` for **that** id is recorded.
+4. `xcpng-aiops snapshot list --vm <vm-uuid>` → confirm the snapshot exists before you change anything.
+5. Make your change. If it went wrong: `xcpng-aiops snapshot revert <snapshot-uuid>` (double confirm — replaces current state, **IRREVERSIBLE**, no undo).
+6. When you are satisfied: `xcpng-aiops snapshot delete <snapshot-uuid> --dry-run`, then without `--dry-run` (double confirm — **IRREVERSIBLE**, BEFORE state captured for the audit record, no undo).
+
+**Failure branch**: if `sr usage-rca` flags the SR as near-full or thin-provision overcommitted, do not snapshot — reclaim first (recipe 4). If a revert is refused or leaves the VM halted, check `xcpng-aiops task list` for the XO task; and never leave snapshots stacked long-term, because unmerged chains are the usual root cause of the vdi-chain backup failures in recipe 4.
+
+### 4. "Backups have been failing every night and storage is filling up"
+
+1. `xcpng-aiops backup failure-rca` → failed/skipped/interrupted runs grouped by job and classified: **vdi-chain** (coalesce not finished), **quiesce** (guest VSS), **transport** (remote unreachable), **storage-full**, unknown.
+2. `xcpng-aiops backup logs -n 20` → the raw recent runs behind that classification.
+3. `xcpng-aiops sr usage-rca` → SRs ranked by physical fullness, thin-provision overcommit, and **orphaned VDIs** (attached to no VM) with reclaimable bytes per SR.
+4. `xcpng-aiops sr vdis --sr <sr-uuid> --orphaned-only` → the specific orphaned VDIs worth reclaiming on that SR.
+5. For a **vdi-chain** classification: let the coalesce finish, stop stacking snapshots (`xcpng-aiops snapshot list`), then `xcpng-aiops sr rescan <sr-uuid> --dry-run` and for real (lowest-impact write) so XO re-reads the SR.
+6. For **storage-full**: reclaim space, then re-run `sr usage-rca` to confirm the SR dropped below the near-full threshold.
+7. `xcpng-aiops backup logs -n 20` after the next scheduled run to confirm it went green.
+
+**Failure branch**: a **transport** classification is not an XCP-ng problem — the backup remote is unreachable, so fix the remote in the XO UI (Settings → Remotes); rescanning the SR will not help. A **quiesce** classification means the guest agent could not freeze the filesystem: fix guest tools on that VM rather than disabling quiesce fleet-wide. If `sr rescan` does not shrink the chain, the coalesce is still running — wait rather than rescanning in a loop, which will trip the runaway budget guard.
 
 ## Usage Mode
 
@@ -106,7 +141,7 @@ xcpng-aiops doctor     # XO reachability + token validity + pool count
 | Cloud models (Claude, GPT) | Either | MCP gives structured JSON I/O |
 | Automated pipelines | **MCP** | type-safe parameters, audited |
 
-## MCP Tools (27 — 19 read, 8 write)
+## MCP Tools (29 — 19 read, 8 write, 2 undo)
 
 | Category | Tools | R/W |
 |----------|-------|:---:|
@@ -121,8 +156,9 @@ xcpng-aiops doctor     # XO reachability + token validity + pool count
 | | `snapshot_create`, `snapshot_delete`, `snapshot_revert` | Write |
 | Backups | `backup_job_list`, `backup_log_list`, `backup_failure_rca` | Read |
 | Tasks | `task_list` | Read |
+| Undo | `undo_list`, `undo_apply` | Read + replay |
 
-**Harness features that light up**: `vm_start`↔`vm_stop` record each other as inverses (with `_undo_id`); `vm_migrate` captures the REAL source host BEFORE moving and records "migrate back"; `snapshot_create` captures the REAL snapshot id from the XO response and records "delete THAT snapshot". `snapshot_delete` and `snapshot_revert` are `risk_level=high`, capture BEFORE state, and declare no undo (irreversible). Every write takes `dry_run=True` (no API call, no undo). All 27 tools are audit-logged under `~/.xcpng-aiops/` and pass through the policy pre-check + budget/runaway guard + graduated risk-tier gate. Start any triage with `overview`.
+**Harness features that light up**: `vm_start`↔`vm_stop` record each other as inverses (with `_undo_id`); `vm_migrate` captures the REAL source host BEFORE moving and records "migrate back"; `snapshot_create` captures the REAL snapshot id from the XO response and records "delete THAT snapshot". `snapshot_delete` and `snapshot_revert` are `risk_level=high`, capture BEFORE state, and declare no undo (irreversible). Every write takes `dry_run=True` (no API call, no undo). All 29 tools are audit-logged under `~/.xcpng-aiops/` and pass through the policy pre-check + budget/runaway guard + graduated risk-tier gate. Start any triage with `overview`.
 
 ## CLI Quick Reference
 
@@ -156,7 +192,9 @@ xcpng-aiops doctor                                  # XO reachability + token + 
 xcpng-aiops mcp                                     # start MCP server (stdio)
 ```
 
-See `references/cli-reference.md` for the full command list.
+See `references/cli-reference.md` for the full command list, and
+`references/agent-guardrails.md` when driving these tools with a smaller /
+local model (read-only mode, the enforced guardrails, and a ready system prompt).
 
 ## Troubleshooting
 
@@ -196,7 +234,7 @@ The harness is bundled in the package — no external dependency, no manual setu
 
 ## Contributing & feature requests
 
-This is a preview — coverage is intentionally focused and **mock-validated only**. **Missing a capability you need, or hit an endpoint that differs on your Xen Orchestra version?** Open an issue or pull request at [github.com/AIops-tools/XCPng-AIops](https://github.com/AIops-tools/XCPng-AIops/issues) — feature requests, contributions, and comments are all welcome.
+Coverage is intentionally focused. **Missing a capability you need, or hit an endpoint that differs on your Xen Orchestra version?** Open an issue or pull request at [github.com/AIops-tools/XCPng-AIops](https://github.com/AIops-tools/XCPng-AIops/issues) — feature requests, contributions, and comments are all welcome.
 
 ## License
 

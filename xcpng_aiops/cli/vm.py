@@ -16,8 +16,10 @@ from xcpng_aiops.cli._common import (
     double_confirm,
     dry_run_print,
     get_connection,
+    print_truncation_note,
 )
 from xcpng_aiops.ops import vm_rca, vms
+from xcpng_aiops.ops._util import DEFAULT_LIST_LIMIT
 
 vm_app = typer.Typer(help="VM operations (via Xen Orchestra).", no_args_is_help=True)
 
@@ -25,6 +27,9 @@ PowerStateOption = Annotated[
     str | None, typer.Option("--state", help="Filter by power state (Running/Halted/...)")
 ]
 PoolOption = Annotated[str | None, typer.Option("--pool", help="Filter by pool uuid")]
+LimitOption = Annotated[
+    int, typer.Option("--limit", "-n", help="Max rows to return (truncation is reported)")
+]
 ForceOption = Annotated[
     bool, typer.Option("--force", help="Hard power operation instead of clean (guest tools)")
 ]
@@ -33,11 +38,16 @@ ForceOption = Annotated[
 @vm_app.command("list")
 @cli_errors
 def vm_list(
-    state: PowerStateOption = None, pool: PoolOption = None, target: TargetOption = None
+    state: PowerStateOption = None,
+    pool: PoolOption = None,
+    limit: LimitOption = DEFAULT_LIST_LIMIT,
+    target: TargetOption = None,
 ) -> None:
     """List VMs with power state, host, guest-tools status, sizing."""
     conn, _ = get_connection(target)
-    console.print_json(json.dumps(vms.list_vms(conn, state, pool)))
+    result = vms.list_vms(conn, state, pool, limit)
+    console.print_json(json.dumps(result))
+    print_truncation_note(result, "VMs")
 
 
 @vm_app.command("get")

@@ -6,24 +6,31 @@ from mcp_server._shared import _get_connection, mcp, tool_errors
 from xcpng_aiops.governance import governed_tool
 from xcpng_aiops.ops import vm_rca as rca_ops
 from xcpng_aiops.ops import vms as ops
+from xcpng_aiops.ops._util import DEFAULT_LIST_LIMIT
 
 
 @mcp.tool()
 @governed_tool(risk_level="low")
-@tool_errors("list")
+@tool_errors("dict")
 def vm_list(
     power_state: Optional[str] = None,
     pool: Optional[str] = None,
+    limit: int = DEFAULT_LIST_LIMIT,
     target: Optional[str] = None,
-) -> list:
+) -> dict:
     """[READ] List VMs with power state, host, tools status, sizing.
+
+    Returns {"vms": [...], "returned": N, "limit": L, "truncated": bool}.
+    When truncated is true there are more VMs than were returned — re-run with
+    a higher limit rather than treating this as the whole fleet.
 
     Args:
         power_state: Optional filter (Running / Halted / Paused / Suspended).
         pool: Optional pool uuid to filter by.
+        limit: Max VMs to return after filtering (default 200).
         target: Xen Orchestra target name from config; omit for the default.
     """
-    return ops.list_vms(_get_connection(target), power_state, pool)
+    return ops.list_vms(_get_connection(target), power_state, pool, limit)
 
 
 @mcp.tool()

@@ -27,9 +27,10 @@ def test_list_vms_filters_by_state_and_pool():
         {"uuid": "3", "name_label": "c", "power_state": "Running", "$pool": "p2"},
     ]
     running = vm_ops.list_vms(conn, power_state="running")
-    assert {r["name"] for r in running} == {"a", "c"}
+    assert {r["name"] for r in running["vms"]} == {"a", "c"}
+    assert running["returned"] == 2 and running["truncated"] is False
     p1 = vm_ops.list_vms(conn, pool="p1")
-    assert {r["name"] for r in p1} == {"a", "b"}
+    assert {r["name"] for r in p1["vms"]} == {"a", "b"}
 
 
 @pytest.mark.unit
@@ -57,9 +58,9 @@ def test_list_vm_snapshots_filter():
         {"uuid": "s2", "name_label": "n2", "$snapshot_of": "vm-2"},
     ]
     all_snaps = vm_ops.list_vm_snapshots(conn)
-    assert len(all_snaps) == 2
+    assert all_snaps["returned"] == 2
     one = vm_ops.list_vm_snapshots(conn, vm_id="vm-1")
-    assert [s["id"] for s in one] == ["s1"]
+    assert [s["id"] for s in one["snapshots"]] == ["s1"]
 
 
 @pytest.mark.unit
@@ -166,10 +167,10 @@ def test_list_tasks_status_filter():
         {"id": "t2", "status": "failure", "properties": {"name": "clone"}},
     ]
     all_tasks = task_ops.list_tasks(conn)
-    assert len(all_tasks) == 2
-    assert all_tasks[0]["name"] == "backup"
+    assert all_tasks["returned"] == 2
+    assert all_tasks["tasks"][0]["name"] == "backup"
     failed = task_ops.list_tasks(conn, status="failure")
-    assert [t["id"] for t in failed] == ["t2"]
+    assert [t["id"] for t in failed["tasks"]] == ["t2"]
 
 
 @pytest.mark.unit

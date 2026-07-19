@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Any
 
 from xcpng_aiops.ops import vms as vm_ops
-from xcpng_aiops.ops._util import s
+from xcpng_aiops.ops._util import ANALYSIS_LIST_LIMIT, s
 
 # ── Thresholds (named constants, tune per fleet) ────────────────────────────
 CPU_PRESSURE_PERCENT = 90.0  # avg CPU at/above this = cpu-pressure
@@ -133,12 +133,17 @@ def vm_health_rca(conn: Any, vm_id: str | None = None) -> dict:
 
     Analyzes one VM (``vm_id``) or the whole fleet. Stats-based pressure checks
     are capped at ``_STATS_VM_CAP`` Running VMs in fleet mode.
+    ``inputTruncated`` is true when the fleet listing itself was capped — the
+    analysis then covers only that subset.
     """
+    input_truncated = False
     if vm_id:
         vm = vm_ops.get_vm(conn, vm_id)
         vms = [vm] if vm else []
     else:
-        vms = vm_ops.list_vms(conn)
+        page = vm_ops.list_vms(conn, limit=ANALYSIS_LIST_LIMIT)
+        vms = page["vms"]
+        input_truncated = page["truncated"]
 
     findings: list[dict] = []
     stats_budget = len(vms) if vm_id else _STATS_VM_CAP
@@ -152,6 +157,7 @@ def vm_health_rca(conn: Any, vm_id: str | None = None) -> dict:
     findings.sort(key=lambda f: severity_rank.get(f["severity"], 3))
     return {
         "vmsAnalyzed": len(vms),
+        "inputTruncated": input_truncated,
         "findings": findings,
         "healthy": not findings,
         "thresholds": {

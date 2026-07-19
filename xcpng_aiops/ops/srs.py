@@ -14,7 +14,15 @@ from __future__ import annotations
 from typing import Any
 
 from xcpng_aiops.connection import _seg
-from xcpng_aiops.ops._util import as_list, pct, s
+from xcpng_aiops.governance import opt_str
+from xcpng_aiops.ops._util import (
+    ANALYSIS_LIST_LIMIT,
+    DEFAULT_LIST_LIMIT,
+    as_list,
+    paged,
+    pct,
+    s,
+)
 
 SR_FIELDS = "uuid,name_label,SR_type,content_type,shared,size,physical_usage,usage,$pool"
 VDI_FIELDS = "uuid,name_label,size,usage,$SR,$VBDs"
@@ -30,12 +38,12 @@ def sr_summary(sr: dict) -> dict:
     size = sr.get("size")
     physical = sr.get("physical_usage")
     return {
-        "id": s(sr.get("uuid"), 64),
-        "name": s(sr.get("name_label"), 128),
-        "type": s(sr.get("SR_type"), 32),
-        "contentType": s(sr.get("content_type"), 32),
+        "id": opt_str(sr.get("uuid"), 64),
+        "name": opt_str(sr.get("name_label"), 128),
+        "type": opt_str(sr.get("SR_type"), 32),
+        "contentType": opt_str(sr.get("content_type"), 32),
         "shared": sr.get("shared"),
-        "pool": s(sr.get("$pool"), 64),
+        "pool": opt_str(sr.get("$pool"), 64),
         "sizeBytes": size,
         "physicalUsageBytes": physical,
         "virtualAllocationBytes": sr.get("usage"),
@@ -43,12 +51,16 @@ def sr_summary(sr: dict) -> dict:
     }
 
 
-def list_srs(conn: Any, pool: str | None = None) -> list[dict]:
-    """[READ] List SRs with capacity, physical usage, and virtual allocation."""
+def list_srs(conn: Any, pool: str | None = None, limit: int = DEFAULT_LIST_LIMIT) -> dict:
+    """[READ] List SRs with capacity, physical usage, and virtual allocation.
+
+    Returns ``{"srs": [...], "returned": N, "limit": L, "truncated": b}`` so a
+    capped inventory read cannot be mistaken for the whole fleet.
+    """
     rows = [sr_summary(x) for x in as_list(conn.get("/srs", params={"fields": SR_FIELDS}))]
     if pool:
         rows = [r for r in rows if r.get("pool") == pool]
-    return rows
+    return paged("srs", rows, limit)
 
 
 def get_sr(conn: Any, sr_id: str) -> dict:
@@ -57,16 +69,27 @@ def get_sr(conn: Any, sr_id: str) -> dict:
     return sr_summary(sr) if isinstance(sr, dict) else {}
 
 
-def list_vdis(conn: Any, sr: str | None = None, orphaned_only: bool = False) -> list[dict]:
-    """[READ] List VDIs (virtual disks), optionally per SR or orphaned-only."""
+def list_vdis(
+    conn: Any,
+    sr: str | None = None,
+    orphaned_only: bool = False,
+    limit: int = DEFAULT_LIST_LIMIT,
+) -> dict:
+    """[READ] List VDIs (virtual disks), optionally per SR or orphaned-only.
+
+    VDIs are the longest inventory in an XCP-ng fleet, so the result is a
+    truncation-announcing envelope::
+
+        {"vdis": [...], "returned": 200, "limit": 200, "truncated": true}
+    """
     rows = []
     for vdi in as_list(conn.get("/vdis", params={"fields": VDI_FIELDS})):
         vbds = vdi.get("$VBDs") or []
         rows.append(
             {
-                "id": s(vdi.get("uuid"), 64),
-                "name": s(vdi.get("name_label"), 128),
-                "sr": s(vdi.get("$SR"), 64),
+                "id": opt_str(vdi.get("uuid"), 64),
+                "name": opt_str(vdi.get("name_label"), 128),
+                "sr": opt_str(vdi.get("$SR"), 64),
                 "sizeBytes": vdi.get("size"),
                 "usageBytes": vdi.get("usage"),
                 "attached": len(vbds) > 0,
@@ -76,7 +99,7 @@ def list_vdis(conn: Any, sr: str | None = None, orphaned_only: bool = False) -> 
         rows = [r for r in rows if r.get("sr") == sr]
     if orphaned_only:
         rows = [r for r in rows if not r.get("attached")]
-    return rows
+    return paged("vdis", rows, limit)
 
 
 def sr_usage_rca(conn: Any) -> dict:
@@ -85,9 +108,14 @@ def sr_usage_rca(conn: Any) -> dict:
     Findings: ``sr-critical`` / ``sr-near-full`` (physical usage), ``sr-
     overcommitted`` (thin-provision virtual allocation > capacity), and
     ``orphaned-vdis`` (unattached disks with reclaimable bytes, per SR).
+
+    ``inputTruncated`` is true when the SR or VDI inventory this ran over was
+    itself capped — the analysis is then over a subset, and says so.
     """
-    srs = list_srs(conn)
-    vdis = list_vdis(conn)
+    sr_page = list_srs(conn, limit=ANALYSIS_LIST_LIMIT)
+    vdi_page = list_vdis(conn, limit=ANALYSIS_LIST_LIMIT)
+    srs = sr_page["srs"]
+    vdis = vdi_page["vdis"]
     disk_srs = [x for x in srs if (x.get("contentType") or "") != "iso"]
 
     findings: list[dict] = []
@@ -170,6 +198,7 @@ def sr_usage_rca(conn: Any) -> dict:
     return {
         "srsAnalyzed": len(disk_srs),
         "vdisAnalyzed": len(vdis),
+        "inputTruncated": bool(sr_page["truncated"] or vdi_page["truncated"]),
         "orphanedVdis": len(orphaned),
         "findings": findings,
         "healthy": not findings,

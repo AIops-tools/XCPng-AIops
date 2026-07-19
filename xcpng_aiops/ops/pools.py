@@ -13,8 +13,9 @@ from __future__ import annotations
 from typing import Any
 
 from xcpng_aiops.connection import _seg
+from xcpng_aiops.governance import opt_str
 from xcpng_aiops.ops import hosts as host_ops
-from xcpng_aiops.ops._util import as_list, s
+from xcpng_aiops.ops._util import as_list
 
 POOL_FIELDS = "uuid,name_label,name_description,master,HA_enabled,default_SR"
 
@@ -22,11 +23,11 @@ POOL_FIELDS = "uuid,name_label,name_description,master,HA_enabled,default_SR"
 def _pool_summary(pool: dict) -> dict:
     """Reduce a pool record to a high-signal summary."""
     return {
-        "id": s(pool.get("uuid"), 64),
-        "name": s(pool.get("name_label"), 128),
-        "master": s(pool.get("master"), 64),
+        "id": opt_str(pool.get("uuid"), 64),
+        "name": opt_str(pool.get("name_label"), 128),
+        "master": opt_str(pool.get("master"), 64),
         "haEnabled": pool.get("HA_enabled"),
-        "defaultSr": s(pool.get("default_SR"), 64),
+        "defaultSr": opt_str(pool.get("default_SR"), 64),
     }
 
 
@@ -41,8 +42,8 @@ def get_pool(conn: Any, pool_id: str) -> dict:
     if not isinstance(pool, dict):
         return {}
     summary = _pool_summary(pool)
-    summary["description"] = s(pool.get("name_description"), 256)
-    summary["tags"] = [s(t, 64) for t in (pool.get("tags") or [])[:16]]
+    summary["description"] = opt_str(pool.get("name_description"), 256)
+    summary["tags"] = [opt_str(t, 64) for t in (pool.get("tags") or [])[:16]]
     return summary
 
 

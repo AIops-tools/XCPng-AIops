@@ -13,7 +13,8 @@ from __future__ import annotations
 from typing import Any
 
 from xcpng_aiops.connection import _seg
-from xcpng_aiops.ops._util import as_list, s
+from xcpng_aiops.governance import opt_str
+from xcpng_aiops.ops._util import DEFAULT_LIST_LIMIT, as_list, paged, s
 
 VM_FIELDS = (
     "uuid,name_label,name_description,power_state,os_version,managementAgentDetected,"
@@ -36,27 +37,38 @@ def vm_summary(vm: dict) -> dict:
     memory = vm.get("memory") or {}
     cpus = vm.get("CPUs") or {}
     return {
-        "id": s(vm.get("uuid"), 64),
-        "name": s(vm.get("name_label"), 128),
-        "powerState": s(vm.get("power_state"), 32),
-        "pool": s(vm.get("$pool"), 64),
-        "host": s(vm.get("$container"), 64),
+        "id": opt_str(vm.get("uuid"), 64),
+        "name": opt_str(vm.get("name_label"), 128),
+        "powerState": opt_str(vm.get("power_state"), 32),
+        "pool": opt_str(vm.get("$pool"), 64),
+        "host": opt_str(vm.get("$container"), 64),
         "vcpus": cpus.get("number") if isinstance(cpus, dict) else None,
         "memoryBytes": memory.get("size") if isinstance(memory, dict) else None,
         "guestToolsDetected": _tools_ok(vm),
         "autoPoweron": vm.get("auto_poweron"),
-        "haRestartPriority": s(vm.get("high_availability"), 32),
+        "haRestartPriority": opt_str(vm.get("high_availability"), 32),
     }
 
 
-def list_vms(conn: Any, power_state: str | None = None, pool: str | None = None) -> list[dict]:
-    """[READ] List VMs, optionally filtered by power state and/or pool id."""
+def list_vms(
+    conn: Any,
+    power_state: str | None = None,
+    pool: str | None = None,
+    limit: int = DEFAULT_LIST_LIMIT,
+) -> dict:
+    """[READ] List VMs, optionally filtered by power state and/or pool id.
+
+    Filters are applied first, then the ``limit`` cap, so ``limit`` bounds what
+    you actually asked for. Returns a truncation-announcing envelope::
+
+        {"vms": [...], "returned": 200, "limit": 200, "truncated": true}
+    """
     rows = [vm_summary(v) for v in as_list(conn.get("/vms", params={"fields": VM_FIELDS}))]
     if power_state:
-        rows = [r for r in rows if r.get("powerState", "").lower() == power_state.lower()]
+        rows = [r for r in rows if (r.get("powerState") or "").lower() == power_state.lower()]
     if pool:
         rows = [r for r in rows if r.get("pool") == pool]
-    return rows
+    return paged("vms", rows, limit)
 
 
 def get_vm(conn: Any, vm_id: str) -> dict:
@@ -65,8 +77,8 @@ def get_vm(conn: Any, vm_id: str) -> dict:
     if not isinstance(vm, dict):
         return {}
     summary = vm_summary(vm)
-    summary["description"] = s(vm.get("name_description"), 256)
-    summary["osVersion"] = s((vm.get("os_version") or {}).get("name"), 128)
+    summary["description"] = opt_str(vm.get("name_description"), 256)
+    summary["osVersion"] = opt_str((vm.get("os_version") or {}).get("name"), 128)
     summary["startTime"] = vm.get("startTime")
     summary["tags"] = [s(t, 64) for t in (vm.get("tags") or [])[:16]]
     return summary
@@ -111,19 +123,25 @@ def vm_stats(conn: Any, vm_id: str, granularity: str = "seconds") -> dict:
     }
 
 
-def list_vm_snapshots(conn: Any, vm_id: str | None = None) -> list[dict]:
-    """[READ] List VM snapshots, optionally filtered to one VM uuid."""
+def list_vm_snapshots(
+    conn: Any, vm_id: str | None = None, limit: int = DEFAULT_LIST_LIMIT
+) -> dict:
+    """[READ] List VM snapshots, optionally filtered to one VM uuid.
+
+    Returns ``{"snapshots": [...], "returned": N, "limit": L, "truncated": b}``
+    — snapshot counts grow silently, so a capped read has to say it was capped.
+    """
     fields = "uuid,name_label,snapshot_time,$snapshot_of"
     rows = []
     for snap in as_list(conn.get("/vm-snapshots", params={"fields": fields})):
         rows.append(
             {
-                "id": s(snap.get("uuid"), 64),
-                "name": s(snap.get("name_label"), 128),
+                "id": opt_str(snap.get("uuid"), 64),
+                "name": opt_str(snap.get("name_label"), 128),
                 "snapshotTime": snap.get("snapshot_time"),
-                "vm": s(snap.get("$snapshot_of"), 64),
+                "vm": opt_str(snap.get("$snapshot_of"), 64),
             }
         )
     if vm_id:
         rows = [r for r in rows if r.get("vm") == vm_id]
-    return rows
+    return paged("snapshots", rows, limit)

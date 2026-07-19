@@ -17,7 +17,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from xcpng_aiops.ops._util import as_list, s
+from xcpng_aiops.governance import opt_str
+from xcpng_aiops.ops._util import DEFAULT_LIST_LIMIT, as_list, paged, s
 
 # How many recent log entries the RCA examines by default.
 DEFAULT_LOG_LIMIT = 50
@@ -57,19 +58,22 @@ _CLASSIFIERS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 )
 
 
-def list_backup_jobs(conn: Any) -> list[dict]:
-    """[READ] List VM backup jobs (id, name, mode, schedules)."""
+def list_backup_jobs(conn: Any, limit: int = DEFAULT_LIST_LIMIT) -> dict:
+    """[READ] List VM backup jobs (id, name, mode, schedules).
+
+    Returns ``{"jobs": [...], "returned": N, "limit": L, "truncated": b}``.
+    """
     rows = []
     for job in as_list(conn.get("/backup/jobs/vm")):
         rows.append(
             {
-                "id": s(job.get("id"), 64),
-                "name": s(job.get("name"), 128),
-                "mode": s(job.get("mode"), 32),
-                "type": s(job.get("type"), 32),
+                "id": opt_str(job.get("id"), 64),
+                "name": opt_str(job.get("name"), 128),
+                "mode": opt_str(job.get("mode"), 32),
+                "type": opt_str(job.get("type"), 32),
             }
         )
-    return rows
+    return paged("jobs", rows, limit)
 
 
 def _log_summary(log: dict) -> dict:
@@ -85,20 +89,34 @@ def _log_summary(log: dict) -> dict:
             if msg:
                 messages.append(s(msg, 200))
     return {
-        "id": s(log.get("id"), 64),
-        "jobId": s(log.get("jobId"), 64),
-        "jobName": s(log.get("jobName"), 128),
-        "status": s(log.get("status"), 32),
+        "id": opt_str(log.get("id"), 64),
+        "jobId": opt_str(log.get("jobId"), 64),
+        "jobName": opt_str(log.get("jobName"), 128),
+        "status": opt_str(log.get("status"), 32),
         "start": log.get("start"),
         "end": log.get("end"),
         "failedTaskMessages": messages[:5],
     }
 
 
-def list_backup_logs(conn: Any, limit: int = DEFAULT_LOG_LIMIT) -> list[dict]:
-    """[READ] List recent backup run logs (status + failed-task messages)."""
-    data = conn.get("/backup/logs", params={"limit": limit})
-    return [_log_summary(x) for x in as_list(data)]
+def list_backup_logs(conn: Any, limit: int = DEFAULT_LOG_LIMIT) -> dict:
+    """[READ] List recent backup run logs (status + failed-task messages).
+
+    One extra record is requested from XO so ``truncated`` is *measured* — a
+    row count that happens to equal the limit proves nothing::
+
+        {"logs": [...], "returned": 50, "limit": 50, "truncated": true}
+    """
+    requested = max(1, int(limit))
+    raw = as_list(conn.get("/backup/logs", params={"limit": requested + 1}))
+    truncated = len(raw) > requested
+    logs = [_log_summary(x) for x in raw[:requested]]
+    return {
+        "logs": logs,
+        "returned": len(logs),
+        "limit": requested,
+        "truncated": truncated,
+    }
 
 
 def _classify(message: str) -> tuple[str, str]:
@@ -118,9 +136,12 @@ def backup_failure_rca(conn: Any, limit: int = DEFAULT_LOG_LIMIT) -> dict:
     """[READ][RCA] Classify failed/skipped backup runs: cause + action per job.
 
     Examines the most recent ``limit`` run logs and groups findings by job.
+    ``inputTruncated`` is true when there were more recent runs than ``limit``
+    let through — the classification then covers only that window.
     """
-    jobs = {j["id"]: j for j in list_backup_jobs(conn)}
-    logs = list_backup_logs(conn, limit)
+    jobs = {j["id"]: j for j in list_backup_jobs(conn)["jobs"]}
+    log_page = list_backup_logs(conn, limit)
+    logs = log_page["logs"]
 
     per_job: dict[str, dict] = {}
     for log in logs:
@@ -158,6 +179,7 @@ def backup_failure_rca(conn: Any, limit: int = DEFAULT_LOG_LIMIT) -> dict:
     jobs_with_failures = [e for e in per_job.values() if e["badRuns"]]
     return {
         "logsExamined": len(logs),
+        "inputTruncated": bool(log_page["truncated"]),
         "jobsSeen": len(per_job),
         "jobsWithFailures": len(jobs_with_failures),
         "jobs": sorted(per_job.values(), key=lambda e: -e["badRuns"]),

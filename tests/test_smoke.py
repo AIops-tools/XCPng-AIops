@@ -179,8 +179,8 @@ def test_every_mcp_tool_is_governed_by_harness():
 
 @pytest.mark.unit
 def test_risk_tiers_are_correct():
-    """Irreversible snapshot delete/revert = high; lifecycle writes = medium;
-    the metadata-only SR rescan = low."""
+    """Irreversible snapshot delete/revert = high; every other write (including
+    the metadata-only SR rescan) = medium, so read-only mode hides them all."""
     from mcp_server.tools import snapshots as snap_tools
     from mcp_server.tools import srs as sr_tools
     from mcp_server.tools import vm_actions as vm_tools
@@ -192,7 +192,7 @@ def test_risk_tiers_are_correct():
     assert vm_tools.vm_stop._risk_level == "medium"
     assert vm_tools.vm_reboot._risk_level == "medium"
     assert vm_tools.vm_migrate._risk_level == "medium"
-    assert sr_tools.sr_rescan._risk_level == "low"
+    assert sr_tools.sr_rescan._risk_level == "medium"
 
 
 @pytest.mark.unit
@@ -209,7 +209,9 @@ def test_read_ops_shape_against_mock():
          "managementAgentDetected": True, "auto_poweron": True,
          "high_availability": "restart"},
     ]
-    rows = vm_ops.list_vms(conn)
+    page = vm_ops.list_vms(conn)
+    rows = page["vms"]
+    assert page["returned"] == 1 and page["truncated"] is False
     assert rows[0]["name"] == "web01"
     assert rows[0]["powerState"] == "Running"
     assert rows[0]["guestToolsDetected"] is True
@@ -220,7 +222,7 @@ def test_read_ops_shape_against_mock():
          "content_type": "user", "shared": False, "$pool": "pool-1",
          "size": 1000, "physical_usage": 850, "usage": 1200},
     ]
-    srs = sr_ops.list_srs(conn)
+    srs = sr_ops.list_srs(conn)["srs"]
     assert srs[0]["usedPercent"] == 85.0
     assert srs[0]["virtualAllocationBytes"] == 1200
 

@@ -76,3 +76,17 @@ def double_confirm(action: str, resource: str) -> None:
         f"Confirm 2/2: really {action} '{resource}'? This may be irreversible.",
         abort=True,
     )
+
+
+def print_truncation_note(result: dict, noun: str) -> None:
+    """Print a visible warning when a listing envelope was capped.
+
+    The JSON already carries ``truncated``, but a human scrolling a long dump
+    will not spot it — and neither will a model summarising the terminal. Say
+    it in words, on the last line, where it cannot be missed.
+    """
+    if isinstance(result, dict) and result.get("truncated"):
+        console.print(
+            f"[yellow]… showing {result.get('returned')} of more {noun} — "
+            f"truncated, re-run with a higher --limit[/]"
+        )

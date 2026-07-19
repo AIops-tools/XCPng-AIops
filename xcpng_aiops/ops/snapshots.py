@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import Any
 
 from xcpng_aiops.connection import _seg
+from xcpng_aiops.governance import opt_str
 from xcpng_aiops.ops._util import s
 
 _SYNC = {"sync": "true"}
@@ -32,10 +33,10 @@ def _snapshot_record(conn: Any, snapshot_id: str) -> dict:
         snap = conn.get(f"/vm-snapshots/{_seg(snapshot_id)}")
         if isinstance(snap, dict):
             return {
-                "id": s(snap.get("uuid"), 64),
-                "name": s(snap.get("name_label"), 128),
+                "id": opt_str(snap.get("uuid"), 64),
+                "name": opt_str(snap.get("name_label"), 128),
                 "snapshotTime": snap.get("snapshot_time"),
-                "vm": s(snap.get("$snapshot_of"), 64),
+                "vm": opt_str(snap.get("$snapshot_of"), 64),
             }
     except Exception:  # noqa: BLE001 — advisory context only
         pass

@@ -1,6 +1,6 @@
 <!-- mcp-name: io.github.AIops-tools/xcpng-aiops -->
 
-# XCP-ng AIops (preview)
+# XCP-ng AIops
 
 > **Disclaimer**: Community-maintained open-source project. **Not affiliated with, endorsed by, or sponsored by Vates, the XCP-ng project, or the Xen Orchestra project.** "XCP-ng", "Xen Orchestra", and "Xen" are trademarks of their owners. MIT licensed.
 
@@ -11,8 +11,6 @@ tiers. Built for homelabs and small/self-hosted XCP-ng fleets that want an AI
 agent to triage VM health, storage pressure, backup failures, and patch
 posture — with every write audited, previewable, and (where honest)
 reversible. Self-contained: no dependencies beyond `httpx` and the MCP SDK.
-**Preview — mock-validated only, not yet verified against a live Xen
-Orchestra instance.**
 
 > **Requires a Xen Orchestra instance** (XO from sources or the Xen Orchestra
 > Appliance, 5.x with `/rest/v0`). XO is the management plane this tool talks
@@ -22,13 +20,13 @@ Orchestra instance.**
 ## What works
 
 - **CLI** (`xcpng-aiops ...`): `init`, `overview`, `vm list/get/stats/health-rca/start/stop/reboot/migrate`, `host list/get/missing-patches`, `pool list/get/posture`, `sr list/get/vdis/usage-rca/rescan`, `snapshot list/create/delete/revert`, `backup jobs/logs/failure-rca`, `task list`, `secret set/list/rm/migrate/rotate-password`, `doctor`, `mcp`.
-- **MCP server** (`xcpng-aiops mcp` or `xcpng-aiops-mcp`): **27 tools** (19 read, 8 write), every one wrapped with the bundled `@governed_tool` harness.
+- **MCP server** (`xcpng-aiops mcp` or `xcpng-aiops-mcp`): **29 tools** (19 read, 8 write, 2 undo), every one wrapped with the bundled `@governed_tool` harness.
 - **Four flagship RCA analyses** (cause + action structured output): VM health, SR usage, backup-job failures, pool patch & HA posture.
 - **Encrypted credentials**: the XO authentication token lives in an encrypted store `~/.xcpng-aiops/secrets.enc` (Fernet + scrypt) — **never plaintext on disk**. Unlock with a master password from `XCPNG_AIOPS_MASTER_PASSWORD` (MCP/CI) or an interactive prompt (CLI).
 - **Reversibility**: `vm_start` ↔ `vm_stop` record each other as inverses; `vm_migrate` captures the REAL source host before moving and records "migrate back"; `snapshot_create` captures the created snapshot's REAL id from the XO response and records "delete THAT snapshot". Irreversible ops (`snapshot_delete`, `snapshot_revert`, `vm_reboot`) capture prior state for the audit record and honestly declare **no undo**.
 - **Safety**: destructive CLI ops require double confirmation and support `--dry-run`; every write MCP tool takes a `dry_run` preview (no API call, no undo recorded).
 
-## Capability matrix (27 MCP tools)
+## Capability matrix (29 MCP tools)
 
 | Domain | Tools | Count | R/W |
 |--------|-------|:-----:|:---:|
@@ -38,11 +36,12 @@ Orchestra instance.**
 | **Hosts** | `host_list`, `host_get` | 2 | read |
 | **Pools** | `pool_list`, `pool_get`, `pool_patch_ha_posture` | 3 | read |
 | **SRs / VDIs** | `sr_list`, `sr_get`, `vdi_list`, `sr_usage_rca` | 4 | read |
-| | `sr_rescan` | 1 | write (low) |
+| | `sr_rescan` | 1 | write (medium) |
 | **Snapshots** | `snapshot_list` | 1 | read |
 | | `snapshot_create` (medium), `snapshot_delete` (high), `snapshot_revert` (high) | 3 | write |
 | **Backups** | `backup_job_list`, `backup_log_list`, `backup_failure_rca` | 3 | read |
 | **Tasks** | `task_list` | 1 | read |
+| **Undo** | `undo_list`, `undo_apply` | 2 | read + replay |
 
 ### Flagship RCAs
 
@@ -50,6 +49,46 @@ Orchestra instance.**
 2. **`sr_usage_rca`** — SRs ranked by physical fullness (near-full ≥ 85%, critical ≥ 95%), thin-provision overcommit (virtual allocation > capacity), orphaned VDIs (attached to no VM) with reclaimable bytes per SR.
 3. **`backup_failure_rca`** — failed/skipped/interrupted XO backup runs classified: **vdi-chain** (coalesce not finished), **quiesce** (guest VSS), **transport** (remote unreachable), **storage-full**, unknown — with per-job counts and sample messages.
 4. **`pool_patch_ha_posture`** — hosts missing patches, hosts pending reboot, **version skew** across a pool's hosts (breaks live migration / rolling updates), multi-host pools without HA.
+
+## Security: read-only mode
+
+This tool is meant to be handed to an AI agent, so its safety story is enforced
+by the server rather than requested in a prompt:
+
+```bash
+export XCPNG_READ_ONLY=1
+```
+
+With that set, the **9 write tools are never registered**. An MCP client
+lists **20 tools instead of 29** — the writes are not hidden, not
+gated behind a flag, and not merely refused when called. They are absent from
+the session. A model cannot invoke a tool it was never offered, and cannot be
+argued into one.
+
+That distinction is the whole point. A tool that exists but refuses still invites
+retry loops and "I'll describe the call instead" behaviour from smaller models,
+and it leaves a reviewer trusting a promise. An absent tool is a fact you can
+check: connect, list the tools, and see that the writes are not there.
+
+Enforcement is two layers deep, so the switch cannot be sidestepped by changing
+entry point:
+
+| Layer | What it does | Covers |
+|---|---|---|
+| `@governed_tool` harness | refuses every non-read operation outright | MCP, CLI, and in-process callers |
+| MCP registration | write tools are removed from `list_tools()` | anything speaking MCP |
+
+Read operations are unaffected, and every call is still audited to
+`~/.xcpng-aiops/audit.db`.
+
+> The read/write split is derived from each tool's declared `risk_level`, and a
+> test asserts that this never disagrees with the `[READ]`/`[WRITE]` tag in the
+> tool's own documentation — so a write can't quietly present itself as a read.
+
+Running a smaller / local model? See
+[agent-guardrails.md](skills/xcpng-aiops/references/agent-guardrails.md) — it lists
+the guardrails this tool now enforces for you (so you don't spend prompt budget
+restating them) and gives a ready-made system prompt for what's left.
 
 ## Quick start
 
@@ -136,15 +175,16 @@ Every MCP tool passes through the bundled `@governed_tool` harness:
 | Backups | jobs / logs / failure RCA | — |
 | Tasks | list | — |
 
-**缺功能？(Missing something?)** This is a focused preview. Open an issue or PR at
+**缺功能？(Missing something?)** Coverage is intentionally focused. Open an issue or PR at
 [github.com/AIops-tools/XCPng-AIops](https://github.com/AIops-tools/XCPng-AIops/issues)
 — feature requests, contributions, and comments are all welcome.
 
-## Preview caveats
+## Scope & caveats
 
-- **Mock-only**: all behaviour is validated against mocked REST responses; not
-  yet run against a live Xen Orchestra instance. `xcpng-aiops doctor` is the
-  fastest live check.
+- **Verification status**: all behaviour is validated against mocked REST
+  responses; there is no recorded end-to-end run against a live Xen Orchestra
+  instance yet. `xcpng-aiops doctor` is the fastest live check — see
+  [`docs/VERIFICATION.md`](docs/VERIFICATION.md) for the full checklist.
 - Endpoint paths (e.g. `/vms/<id>/actions/snapshot`, `/vm-snapshots/<id>`,
   `/srs/<id>/actions/rescan`, `/hosts/<id>/missing_patches`, `/backup/logs`)
   are modelled against the documented XO REST `/rest/v0` API and need live

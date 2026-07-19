@@ -15,6 +15,7 @@ from xcpng_aiops.ops import hosts as host_ops
 from xcpng_aiops.ops import pools as pool_ops
 from xcpng_aiops.ops import srs as sr_ops
 from xcpng_aiops.ops import vms as vm_ops
+from xcpng_aiops.ops._util import ANALYSIS_LIST_LIMIT
 from xcpng_aiops.ops.srs import SR_NEAR_FULL_PERCENT
 
 # How many recent backup logs the overview scans for failures.
@@ -47,7 +48,8 @@ def _host_block(conn: Any) -> dict:
 
 def _vm_block(conn: Any) -> dict:
     try:
-        vms = vm_ops.list_vms(conn)
+        page = vm_ops.list_vms(conn, limit=ANALYSIS_LIST_LIMIT)
+        vms = page["vms"]
     except Exception as exc:  # noqa: BLE001 — report as partial
         return {"error": str(exc)[:200]}
     by_state: dict[str, int] = {}
@@ -60,12 +62,18 @@ def _vm_block(conn: Any) -> dict:
         if (v.get("powerState") or "").lower() == "running"
         and v.get("guestToolsDetected") is False
     ]
-    return {"total": len(vms), "byPowerState": by_state, "runningWithoutTools": missing_tools}
+    return {
+        "total": len(vms),
+        "byPowerState": by_state,
+        "runningWithoutTools": missing_tools,
+        "truncated": page["truncated"],
+    }
 
 
 def _sr_block(conn: Any) -> dict:
     try:
-        srs = sr_ops.list_srs(conn)
+        page = sr_ops.list_srs(conn, limit=ANALYSIS_LIST_LIMIT)
+        srs = page["srs"]
     except Exception as exc:  # noqa: BLE001 — report as partial
         return {"error": str(exc)[:200]}
     near_full = [
@@ -74,12 +82,13 @@ def _sr_block(conn: Any) -> dict:
         if isinstance(r.get("usedPercent"), (int, float))
         and r["usedPercent"] >= SR_NEAR_FULL_PERCENT
     ]
-    return {"total": len(srs), "nearFull": near_full}
+    return {"total": len(srs), "nearFull": near_full, "truncated": page["truncated"]}
 
 
 def _backup_block(conn: Any) -> dict:
     try:
-        logs = backup_ops.list_backup_logs(conn, _OVERVIEW_LOG_LIMIT)
+        page = backup_ops.list_backup_logs(conn, _OVERVIEW_LOG_LIMIT)
+        logs = page["logs"]
     except Exception as exc:  # noqa: BLE001 — report as partial
         return {"error": str(exc)[:200]}
     bad = [
@@ -87,7 +96,7 @@ def _backup_block(conn: Any) -> dict:
         for x in logs
         if (x.get("status") or "").lower() in ("failure", "interrupted", "skipped")
     ]
-    return {"recentRuns": len(logs), "recentFailures": bad}
+    return {"recentRuns": len(logs), "recentFailures": bad, "truncated": page["truncated"]}
 
 
 def health_overview(conn: Any) -> dict:

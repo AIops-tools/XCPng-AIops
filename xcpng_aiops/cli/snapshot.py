@@ -16,20 +16,32 @@ from xcpng_aiops.cli._common import (
     double_confirm,
     dry_run_print,
     get_connection,
+    print_truncation_note,
 )
 from xcpng_aiops.ops import vms
+from xcpng_aiops.ops._util import DEFAULT_LIST_LIMIT
 
 snapshot_app = typer.Typer(help="VM snapshot operations.", no_args_is_help=True)
 
 VmOption = Annotated[str | None, typer.Option("--vm", help="Filter to one VM uuid")]
+LimitOption = Annotated[
+    int, typer.Option("--limit", "-n", help="Max rows to return (truncation is reported)")
+]
+
 
 
 @snapshot_app.command("list")
 @cli_errors
-def snapshot_list(vm: VmOption = None, target: TargetOption = None) -> None:
+def snapshot_list(
+    vm: VmOption = None,
+    limit: LimitOption = DEFAULT_LIST_LIMIT,
+    target: TargetOption = None,
+) -> None:
     """List VM snapshots, optionally filtered to one VM."""
     conn, _ = get_connection(target)
-    console.print_json(json.dumps(vms.list_vm_snapshots(conn, vm)))
+    result = vms.list_vm_snapshots(conn, vm, limit)
+    console.print_json(json.dumps(result))
+    print_truncation_note(result, "snapshots")
 
 
 @snapshot_app.command("create")

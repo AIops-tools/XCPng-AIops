@@ -12,6 +12,7 @@ from mcp_server._shared import _get_connection, mcp, tool_errors
 from xcpng_aiops.governance import governed_tool
 from xcpng_aiops.ops import snapshots as ops
 from xcpng_aiops.ops import vms as vm_ops
+from xcpng_aiops.ops._util import DEFAULT_LIST_LIMIT
 
 _SKILL = "xcpng-aiops"
 
@@ -32,15 +33,23 @@ def _create_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
 
 @mcp.tool()
 @governed_tool(risk_level="low")
-@tool_errors("list")
-def snapshot_list(vm_id: Optional[str] = None, target: Optional[str] = None) -> list:
+@tool_errors("dict")
+def snapshot_list(
+    vm_id: Optional[str] = None,
+    limit: int = DEFAULT_LIST_LIMIT,
+    target: Optional[str] = None,
+) -> dict:
     """[READ] List VM snapshots, optionally filtered to one VM.
+
+    Returns {"snapshots": [...], "returned": N, "limit": L, "truncated": bool}.
+    When truncated is true there are more snapshots than were returned.
 
     Args:
         vm_id: Optional VM uuid to filter (see vm_list).
+        limit: Max snapshots to return after filtering (default 200).
         target: Xen Orchestra target name from config; omit for the default.
     """
-    return vm_ops.list_vm_snapshots(_get_connection(target), vm_id)
+    return vm_ops.list_vm_snapshots(_get_connection(target), vm_id, limit)
 
 
 @mcp.tool()

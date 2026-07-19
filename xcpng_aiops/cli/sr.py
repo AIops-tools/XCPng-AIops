@@ -15,8 +15,10 @@ from xcpng_aiops.cli._common import (
     console,
     dry_run_print,
     get_connection,
+    print_truncation_note,
 )
 from xcpng_aiops.ops import srs
+from xcpng_aiops.ops._util import DEFAULT_LIST_LIMIT
 
 sr_app = typer.Typer(
     help="Storage repository (SR) operations (via Xen Orchestra).", no_args_is_help=True
@@ -24,6 +26,9 @@ sr_app = typer.Typer(
 
 PoolOption = Annotated[str | None, typer.Option("--pool", help="Filter by pool uuid")]
 SrOption = Annotated[str | None, typer.Option("--sr", help="Filter by SR uuid")]
+LimitOption = Annotated[
+    int, typer.Option("--limit", "-n", help="Max rows to return (truncation is reported)")
+]
 OrphanedOption = Annotated[
     bool, typer.Option("--orphaned-only", help="Only VDIs attached to no VM")
 ]
@@ -31,10 +36,16 @@ OrphanedOption = Annotated[
 
 @sr_app.command("list")
 @cli_errors
-def sr_list(pool: PoolOption = None, target: TargetOption = None) -> None:
+def sr_list(
+    pool: PoolOption = None,
+    limit: LimitOption = DEFAULT_LIST_LIMIT,
+    target: TargetOption = None,
+) -> None:
     """List SRs with capacity, physical usage, virtual allocation."""
     conn, _ = get_connection(target)
-    console.print_json(json.dumps(srs.list_srs(conn, pool)))
+    result = srs.list_srs(conn, pool, limit)
+    console.print_json(json.dumps(result))
+    print_truncation_note(result, "SRs")
 
 
 @sr_app.command("get")
@@ -48,11 +59,16 @@ def sr_get(sr_id: str, target: TargetOption = None) -> None:
 @sr_app.command("vdis")
 @cli_errors
 def sr_vdis(
-    sr: SrOption = None, orphaned_only: OrphanedOption = False, target: TargetOption = None
+    sr: SrOption = None,
+    orphaned_only: OrphanedOption = False,
+    limit: LimitOption = DEFAULT_LIST_LIMIT,
+    target: TargetOption = None,
 ) -> None:
     """List VDIs (virtual disks), optionally per SR or orphaned-only."""
     conn, _ = get_connection(target)
-    console.print_json(json.dumps(srs.list_vdis(conn, sr, orphaned_only)))
+    result = srs.list_vdis(conn, sr, orphaned_only, limit)
+    console.print_json(json.dumps(result))
+    print_truncation_note(result, "VDIs")
 
 
 @sr_app.command("usage-rca")
@@ -66,7 +82,7 @@ def sr_usage_rca(target: TargetOption = None) -> None:
 @sr_app.command("rescan")
 @cli_errors
 def sr_rescan(sr_id: str, target: TargetOption = None, dry_run: DryRunOption = False) -> None:
-    """Rescan an SR (low risk — metadata refresh, governed)."""
+    """Rescan an SR (metadata refresh — governed write, refused in read-only mode)."""
     if dry_run:
         dry_run_print(
             operation="sr_rescan", api_call=f"POST /srs/{sr_id}/actions/rescan?sync=true"

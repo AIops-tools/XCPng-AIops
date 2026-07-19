@@ -75,7 +75,7 @@ def tool_errors(shape: str = "dict") -> Callable:
 mcp = FastMCP(
     "xcpng-aiops",
     instructions=(
-        "XCP-ng operations via Xen Orchestra's REST API (preview): a one-shot "
+        "XCP-ng operations via Xen Orchestra's REST API: a one-shot "
         "health 'overview'; VMs (list/get/stats), hosts, pools, SRs and VDIs, "
         "VM snapshots, backup jobs & logs, tasks; four RCA analyses (VM health, "
         "SR usage, backup failures, pool patch/HA posture); and governed writes "

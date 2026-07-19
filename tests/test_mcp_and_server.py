@@ -40,7 +40,7 @@ def test_mcp_read_tools_reach_ops_layer(gov_home, monkeypatch):
     for mod in (backups, hosts, overview, pools, srs, tasks, vms):
         monkeypatch.setattr(mod, "_get_connection", lambda target=None: conn)
 
-    assert isinstance(vms.vm_list(), list)
+    assert isinstance(vms.vm_list(), dict)
     conn.get.return_value = {"uuid": "vm-1", "name_label": "web"}
     assert vms.vm_get(vm_id="vm-1")["name"] == "web"
     conn.get.return_value = {"stats": {}}
@@ -57,15 +57,15 @@ def test_mcp_read_tools_reach_ops_layer(gov_home, monkeypatch):
     assert pools.pool_get(pool_id="p1")["name"] == "prod"
 
     conn.get.return_value = []
-    assert isinstance(srs.sr_list(), list)
+    assert srs.sr_list()["srs"] == []
     conn.get.return_value = {"uuid": "sr-1", "name_label": "local"}
     assert srs.sr_get(sr_id="sr-1")["name"] == "local"
     conn.get.return_value = []
-    assert isinstance(srs.vdi_list(), list)
+    assert srs.vdi_list()["vdis"] == []
 
-    assert isinstance(backups.backup_job_list(), list)
-    assert isinstance(backups.backup_log_list(), list)
-    assert isinstance(tasks.task_list(), list)
+    assert backups.backup_job_list()["jobs"] == []
+    assert backups.backup_log_list()["logs"] == []
+    assert tasks.task_list()["tasks"] == []
     assert "srNearFullThresholdPercent" in overview.overview()
 
 
@@ -82,7 +82,7 @@ def test_mcp_tool_returns_error_envelope_on_failure(gov_home, monkeypatch):
     assert "error" in out
     assert "doctor" in out["hint"]
     listed = vms.vm_list()
-    assert isinstance(listed, list) and "error" in listed[0]
+    assert isinstance(listed, dict) and "error" in listed
 
 
 # ─── _shared error helpers ──────────────────────────────────────────────────
