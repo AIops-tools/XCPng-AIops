@@ -16,10 +16,13 @@ from xcpng_aiops.connection import _seg
 from xcpng_aiops.governance import opt_str
 from xcpng_aiops.ops._util import DEFAULT_LIST_LIMIT, as_list, paged, s
 
+# ``mainIpAddress`` is requested for the vm_stop dry-run hint (see
+# ops.vm_actions.self_vm_hint) — it only appears when the guest agent is
+# installed, so it is absent far more often than it is wrong.
 VM_FIELDS = (
     "uuid,name_label,name_description,power_state,os_version,managementAgentDetected,"
     "pvDriversDetected,memory,CPUs,$pool,$container,auto_poweron,high_availability,"
-    "startTime,tags"
+    "startTime,tags,mainIpAddress"
 )
 
 

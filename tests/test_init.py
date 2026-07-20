@@ -25,8 +25,9 @@ MASTER_PW = "init-master-pw"
 XO_TOKEN = "xo-personal-token-uuid"  # nosec B105 — test fixture value
 
 # Wizard answers: name, XO URL, accept the TLS confirm default (True),
-# no second target, decline the trailing doctor run.
-WIZARD_INPUT = "xo1\nhttps://xo.example.com\n\nn\nn\n"
+# blank xo_self_vm_uuid (XO not on this pool / not declared), no second target,
+# decline the trailing doctor run.
+WIZARD_INPUT = "xo1\nhttps://xo.example.com\n\n\nn\nn\n"
 
 
 @pytest.fixture
@@ -74,7 +75,7 @@ def test_init_writes_config_with_entered_values(init_home):
 
 
 def test_init_strips_trailing_slash_from_url(init_home):
-    result = _run_init("xo1\nhttps://xo.example.com/\n\nn\nn\n")
+    result = _run_init("xo1\nhttps://xo.example.com/\n\n\nn\nn\n")
     assert result.exit_code == 0, result.output
     raw = yaml.safe_load((init_home / "config.yaml").read_text("utf-8"))
     assert raw["targets"][0]["url"] == "https://xo.example.com"
@@ -82,7 +83,7 @@ def test_init_strips_trailing_slash_from_url(init_home):
 
 def test_init_tls_decline_writes_verify_ssl_false(init_home):
     # Explicit "n" on the TLS confirm (self-signed lab certs).
-    result = _run_init("xo1\nhttps://xo.example.com\nn\nn\nn\n")
+    result = _run_init("xo1\nhttps://xo.example.com\nn\n\nn\nn\n")
     assert result.exit_code == 0, result.output
     raw = yaml.safe_load((init_home / "config.yaml").read_text("utf-8"))
     assert raw["targets"][0]["verify_ssl"] is False
@@ -128,7 +129,7 @@ def test_init_accepting_doctor_confirm_runs_doctor(init_home, monkeypatch):
     calls: list[bool] = []
     monkeypatch.setattr(doctor_mod, "run_doctor", lambda: calls.append(True) or 0)
     # Empty last answer accepts the confirm's default=True.
-    result = _run_init("xo1\nhttps://xo.example.com\n\nn\n\n")
+    result = _run_init("xo1\nhttps://xo.example.com\n\n\nn\n\n")
     assert result.exit_code == 0, result.output
     assert calls == [True]
 
@@ -137,7 +138,7 @@ def test_init_overwrite_existing_target(init_home):
     result = _run_init()
     assert result.exit_code == 0, result.output
     # Same name again: confirm overwrite, new URL, accept defaults.
-    result = _run_init("xo1\ny\nhttps://xo2.example.com\n\nn\nn\n")
+    result = _run_init("xo1\ny\nhttps://xo2.example.com\n\n\nn\nn\n")
     assert result.exit_code == 0, result.output
     raw = yaml.safe_load((init_home / "config.yaml").read_text("utf-8"))
     assert [t["url"] for t in raw["targets"]] == ["https://xo2.example.com"]

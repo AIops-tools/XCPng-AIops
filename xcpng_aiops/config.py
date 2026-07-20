@@ -75,12 +75,20 @@ class TargetConfig:
     from the encrypted secret store (see ``token``), never the config file.
     Create the token in the XO UI (user menu → Personal tokens) or with
     ``xo-cli --createToken``.
+
+    ``xo_self_vm_uuid`` is the uuid of the VM that RUNS this Xen Orchestra, when
+    XO is itself virtualised on a pool it manages — the common deployment. It is
+    operator-declared because XO's REST API exposes no self endpoint and the
+    auth token carries no claims, so the tool cannot discover it. Set it and
+    ``vm_stop`` refuses exactly that uuid; leave it unset and there is no such
+    guard (see :mod:`xcpng_aiops.ops.vm_actions`).
     """
 
     name: str
     url: str
     verify_ssl: bool = True
     api_path: str = DEFAULT_API_PATH
+    xo_self_vm_uuid: str | None = None
 
     @property
     def token(self) -> str:
@@ -130,6 +138,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
             url=t["url"],
             verify_ssl=t.get("verify_ssl", True),
             api_path=t.get("api_path", DEFAULT_API_PATH),
+            xo_self_vm_uuid=(t.get("xo_self_vm_uuid") or None),
         )
         for t in raw.get("targets", [])
     )

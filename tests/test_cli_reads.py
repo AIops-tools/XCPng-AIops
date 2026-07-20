@@ -33,6 +33,27 @@ def patch_conn(monkeypatch):
     return _patch
 
 
+@pytest.fixture
+def patch_gov_conn(monkeypatch):
+    """Patch ``_get_connection`` in the named governed-tool module.
+
+    CLI dry-runs route through the governed twins (that is what applies the
+    guards and the audit row to previews), so a test driving a ``--dry-run``
+    must double the twin's connection, not the CLI module's.
+    """
+
+    def _patch(module_path: str):
+        import importlib
+
+        mod = importlib.import_module(module_path)
+        conn = MagicMock(name="conn")
+        conn.get.return_value = {}
+        monkeypatch.setattr(mod, "_get_connection", lambda target=None: conn)
+        return conn
+
+    return _patch
+
+
 @pytest.mark.unit
 def test_vm_list_get_stats_health_bodies(patch_conn):
     from xcpng_aiops.cli import app
@@ -147,11 +168,18 @@ def test_overview_and_snapshot_list_bodies(patch_conn):
 
 
 @pytest.mark.unit
-def test_dry_run_previews_never_touch_connection(patch_conn):
-    """Dry-run write previews print the API call and make no request."""
+def test_dry_run_previews_print_the_call_and_never_write(patch_gov_conn, tmp_path,
+                                                          monkeypatch):
+    """A dry_run MAY read; it must never write.
+
+    Previews now run through the governed twin, so they may issue reads (that is
+    how a preview can answer "would this be refused?") and they are audited like
+    any other governed call. What they must never do is mutate.
+    """
     from xcpng_aiops.cli import app
 
-    vconn = patch_conn("xcpng_aiops.cli.vm", {})
+    monkeypatch.setenv("XCPNG_AIOPS_HOME", str(tmp_path))
+    vconn = patch_gov_conn("mcp_server.tools.vm_actions")
     for cmd in (
         ["vm", "start", "vm-1", "--dry-run"],
         ["vm", "reboot", "vm-1", "--force", "--dry-run"],
@@ -160,11 +188,12 @@ def test_dry_run_previews_never_touch_connection(patch_conn):
         r = runner.invoke(app, cmd)
         assert r.exit_code == 0, r.output
         assert "DRY-RUN" in r.output
-    assert "host = host-2" in runner.invoke(
+    assert "host_id = host-2" in runner.invoke(
         app, ["vm", "migrate", "vm-1", "host-2", "--dry-run"]
     ).output
+    vconn.post.assert_not_called()
 
-    sconn = patch_conn("xcpng_aiops.cli.snapshot", {})
+    sconn = patch_gov_conn("mcp_server.tools.snapshots")
     for cmd in (
         ["snapshot", "create", "vm-1", "nightly", "--dry-run"],
         ["snapshot", "revert", "snap-1", "--dry-run"],
@@ -172,13 +201,15 @@ def test_dry_run_previews_never_touch_connection(patch_conn):
         r = runner.invoke(app, cmd)
         assert r.exit_code == 0, r.output
         assert "DRY-RUN" in r.output
+    sconn.post.assert_not_called()
+    sconn.delete.assert_not_called()
 
-    srconn = patch_conn("xcpng_aiops.cli.sr", {})
+    srconn = patch_gov_conn("mcp_server.tools.srs")
     r = runner.invoke(app, ["sr", "rescan", "sr-1", "--dry-run"])
     assert r.exit_code == 0, r.output
     assert "DRY-RUN" in r.output
 
-    # None of the previews issued any request.
+    # The invariant, restated on every preview: reads are allowed, writes are not.
     for c in (vconn, sconn, srconn):
         c.post.assert_not_called()
         c.delete.assert_not_called()

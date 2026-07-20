@@ -15,6 +15,7 @@ from xcpng_aiops.cli._common import (
     console,
     dry_run_print,
     get_connection,
+    governed,
     print_truncation_note,
 )
 from xcpng_aiops.ops import srs
@@ -84,9 +85,12 @@ def sr_usage_rca(target: TargetOption = None) -> None:
 def sr_rescan(sr_id: str, target: TargetOption = None, dry_run: DryRunOption = False) -> None:
     """Rescan an SR (metadata refresh — governed write, refused in read-only mode)."""
     if dry_run:
+        preview = governed(gov.sr_rescan(sr_id=sr_id, dry_run=True, target=target))
         dry_run_print(
-            operation="sr_rescan", api_call=f"POST /srs/{sr_id}/actions/rescan?sync=true"
+            operation="sr_rescan",
+            api_call=f"POST /srs/{sr_id}/actions/rescan?sync=true",
+            parameters=preview.get("wouldRescan", {}),
         )
         return
-    gov.sr_rescan(sr_id=sr_id, target=target)
+    governed(gov.sr_rescan(sr_id=sr_id, target=target))
     console.print(f"[green]Rescanned SR {sr_id}[/]")

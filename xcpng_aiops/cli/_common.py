@@ -48,6 +48,22 @@ def cli_errors(fn: Callable) -> Callable:
     return wrapper
 
 
+def governed(result: Any) -> dict:
+    """Return a governed tool's result, or print its error and exit 1.
+
+    The ``mcp_server.tools`` twins never raise: ``@tool_errors`` flattens every
+    failure — a refused self-target, a policy denial, an unreachable XO — into
+    ``{"error": ...}``. A CLI command that drops that on the floor goes on to
+    print its success line for an operation that did not happen, which is the
+    one thing a tool selling "governed and reversible" must never do. Route
+    every governed call through here.
+    """
+    if isinstance(result, dict) and result.get("error"):
+        console.print(f"[red]Error: {result['error']}[/]")
+        raise typer.Exit(1)
+    return result if isinstance(result, dict) else {}
+
+
 def get_connection(target: str | None, config_path: Path | None = None) -> tuple[Any, Any]:
     """Return a (conn, config) tuple for the given target."""
     from xcpng_aiops.config import load_config

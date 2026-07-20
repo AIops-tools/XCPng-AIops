@@ -29,11 +29,26 @@ checklist-shaped so the result is reproducible and auditable — not a subjectiv
   `snapshot_create` records deleting the **real** snapshot id XO returned.
 - `snapshot_delete` / `snapshot_revert` are `high` risk, capture BEFORE state,
   and honestly record **no** undo.
-- `dry_run=True` on every write returns a preview and makes no API call and no
-  undo record.
+- `dry_run=True` on every write returns a preview, records no undo, and makes no
+  write call. It MAY read — that is how it evaluates guards and resolves ids —
+  and it is audited like any other governed call, on the CLI as well as MCP.
+- `vm_stop` refuses the target's declared `xo_self_vm_uuid` on both the MCP and
+  CLI paths and on `dry_run` too, refuses no other uuid, and refuses nothing
+  when undeclared. The IP hint never blocks on either path.
+- `vm_migrate` stashes the pre-move source host via `capture_prior_state`
+  BEFORE the POST, so the inverse is recorded even when the response is lost.
 
 What it does **not** guarantee: that those REST paths, XO action names, RRD
 stat shapes and backup-log field names exist as modelled on any real XO build.
+
+It also does **not** guarantee that stopping the Xen Orchestra VM is prevented.
+The guard is exact but opt-in: with no `xo_self_vm_uuid` declared on the target,
+nothing is refused. XO's REST API has no self endpoint and its static token
+carries no claims, so this cannot be discovered today, and the tool fails open
+rather than guess. The IP-based `selfVmHint` in the dry-run is advisory only —
+it is silent without the guest agent and fires on every VM behind a shared
+proxy or NAT. A live run should confirm both: that the declared uuid is refused
+and that an undeclared target is not.
 
 ## Prerequisites for a live run
 

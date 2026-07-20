@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3.0 — 2026-07-20
+
+### Fixed
+- **`vm_stop` refuses the Xen Orchestra VM when you declare it.** XO is commonly a VM on the pool it manages, and stopping it kills the request in flight; recovery needs console access.
+- **CLI writes now exit non-zero on a governed error.** Eight commands previously discarded the governed result and printed success — a policy denial, an unreachable XO, or a refused self-target all reported as done..
+- Harness: a write whose response is lost is audited `status=unknown`, not `error` — it may have taken effect. Undo tokens gain `effectVerified` (undo.db migrated in place).
+- Harness: a dry-run no longer records an undo token, and no longer requires a named approver. Guards now run on the preview path.
+- Truncated strings end in an ellipsis instead of being cut silently; error messages are capped at 800 chars, not 300.
+
+See RELEASE_NOTES.md for the full detail.
+
 ## v0.1.0 — 2026-07-17
 
 Initial preview release: governed XCP-ng operations via Xen Orchestra's REST

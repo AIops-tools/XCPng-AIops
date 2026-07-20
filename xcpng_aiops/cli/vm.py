@@ -16,6 +16,7 @@ from xcpng_aiops.cli._common import (
     double_confirm,
     dry_run_print,
     get_connection,
+    governed,
     print_truncation_note,
 )
 from xcpng_aiops.ops import vm_rca, vms
@@ -88,11 +89,14 @@ def vm_health_rca(
 def vm_start(vm_id: str, target: TargetOption = None, dry_run: DryRunOption = False) -> None:
     """Start a VM (governed; inverse vm_stop is recorded)."""
     if dry_run:
+        preview = governed(gov.vm_start(vm_id=vm_id, dry_run=True, target=target))
         dry_run_print(
-            operation="vm_start", api_call=f"POST /vms/{vm_id}/actions/start?sync=true"
+            operation="vm_start",
+            api_call=f"POST /vms/{vm_id}/actions/start?sync=true",
+            parameters=preview.get("wouldStart", {}),
         )
         return
-    gov.vm_start(vm_id=vm_id, target=target)
+    governed(gov.vm_start(vm_id=vm_id, target=target))
     console.print(f"[green]Started VM {vm_id}[/]")
 
 
@@ -104,15 +108,28 @@ def vm_stop(
     target: TargetOption = None,
     dry_run: DryRunOption = False,
 ) -> None:
-    """Stop a VM — clean shutdown, or hard with --force (double confirm)."""
+    """Stop a VM — clean shutdown, or hard with --force (double confirm).
+
+    Refuses the VM declared as running Xen Orchestra (xo_self_vm_uuid), on the
+    dry-run too. The dry-run also prints an IP-based hint when one applies — a
+    coincidence to check, never a verdict and never a block.
+    """
     action = "hard_shutdown" if force else "clean_shutdown"
     if dry_run:
+        # Through the governed twin, not around it: that is what applies the
+        # self-target guard and the audit row to the preview as well.
+        preview = governed(gov.vm_stop(vm_id=vm_id, force=force, dry_run=True, target=target))
         dry_run_print(
-            operation="vm_stop", api_call=f"POST /vms/{vm_id}/actions/{action}?sync=true"
+            operation="vm_stop",
+            api_call=f"POST /vms/{vm_id}/actions/{action}?sync=true",
+            parameters=preview.get("wouldStop", {}),
         )
+        hint = preview.get("selfVmHint")
+        if hint:
+            console.print(f"[yellow]  Possible self-target: {hint}[/]")
         return
     double_confirm("stop", f"VM {vm_id}")
-    gov.vm_stop(vm_id=vm_id, force=force, target=target)
+    governed(gov.vm_stop(vm_id=vm_id, force=force, target=target))
     console.print(f"[green]Stopped VM {vm_id} ({'hard' if force else 'clean'})[/]")
 
 
@@ -127,12 +144,17 @@ def vm_reboot(
     """Reboot a VM — clean, or hard with --force (double confirm, no undo)."""
     action = "hard_reboot" if force else "clean_reboot"
     if dry_run:
+        preview = governed(
+            gov.vm_reboot(vm_id=vm_id, force=force, dry_run=True, target=target)
+        )
         dry_run_print(
-            operation="vm_reboot", api_call=f"POST /vms/{vm_id}/actions/{action}?sync=true"
+            operation="vm_reboot",
+            api_call=f"POST /vms/{vm_id}/actions/{action}?sync=true",
+            parameters=preview.get("wouldReboot", {}),
         )
         return
     double_confirm("reboot", f"VM {vm_id}")
-    gov.vm_reboot(vm_id=vm_id, force=force, target=target)
+    governed(gov.vm_reboot(vm_id=vm_id, force=force, target=target))
     console.print(f"[green]Rebooted VM {vm_id} ({'hard' if force else 'clean'})[/]")
 
 
@@ -146,12 +168,15 @@ def vm_migrate(
 ) -> None:
     """Live-migrate a VM to another host (double confirm; undo = migrate back)."""
     if dry_run:
+        preview = governed(
+            gov.vm_migrate(vm_id=vm_id, host_id=host_id, dry_run=True, target=target)
+        )
         dry_run_print(
             operation="vm_migrate",
             api_call=f"POST /vms/{vm_id}/actions/migrate?sync=true",
-            parameters={"host": host_id},
+            parameters=preview.get("wouldMigrate", {}),
         )
         return
     double_confirm("migrate", f"VM {vm_id} → host {host_id}")
-    gov.vm_migrate(vm_id=vm_id, host_id=host_id, target=target)
+    governed(gov.vm_migrate(vm_id=vm_id, host_id=host_id, target=target))
     console.print(f"[green]Migrated VM {vm_id} to host {host_id}[/]")

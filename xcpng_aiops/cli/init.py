@@ -120,12 +120,27 @@ def init_cmd() -> None:
         secret = getpass.getpass(f"XO authentication token for '{name}' (hidden): ")
         store = store.set(name, secret)
 
+        console.print(
+            "\n[dim]Xen Orchestra is often a VM on a pool it manages. If it is, "
+            "stopping that VM kills XO mid-call and recovery needs console access "
+            "(`xe vm-start`). XO's API cannot tell us which VM it runs on, so "
+            "declare it here and vm_stop will refuse exactly that uuid. Find it in "
+            "the XO UI (the XO VM's Advanced tab) or with `xe vm-list`.[/]"
+        )
+        self_vm = typer.prompt(
+            "UUID of the VM running Xen Orchestra (blank if XO is not on this pool)",
+            default="",
+            show_default=False,
+        ).strip()
+
         entry = {
             "name": name,
             "url": url,
             "verify_ssl": verify_ssl,
             "api_path": DEFAULT_API_PATH,
         }
+        if self_vm:
+            entry["xo_self_vm_uuid"] = self_vm
         targets.append(entry)
         existing_names.add(name)
         _write_targets(targets)

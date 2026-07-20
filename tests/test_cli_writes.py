@@ -10,6 +10,7 @@ through the governed path (audit row on disk) — the regression test for the
 from __future__ import annotations
 
 import sqlite3
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -54,25 +55,43 @@ def snap_conn(monkeypatch):
 
 @pytest.fixture
 def vm_conn(monkeypatch):
-    """Route the governed vm_actions tools to a mocked REST connection."""
+    """Route the governed vm_actions tools to a mocked REST connection.
+
+    ``vm stop --dry-run`` reads through the CLI's own ``get_connection`` (not the
+    governed twin) to compute its self-VM hint, so both entry points are pointed
+    at the same double. The target declares no ``xo_self_vm_uuid``: the default
+    is an undeclared target, where the guard must fail open.
+    """
     import mcp_server.tools.vm_actions as gov_vm
+    import xcpng_aiops.cli.vm as cli_vm
 
     conn = MagicMock(name="conn")
     conn.get.return_value = {"power_state": "Running", "$container": "host-1"}
     conn.post.return_value = {}
+    conn.target = SimpleNamespace(
+        name="xo1", url="https://xo.example.com", xo_self_vm_uuid=None
+    )
     monkeypatch.setattr(gov_vm, "_get_connection", lambda target=None: conn)
+    monkeypatch.setattr(cli_vm, "get_connection", lambda target=None: (conn, None))
     return conn
 
 
 @pytest.mark.unit
-def test_cli_snapshot_delete_dry_run_makes_no_call_and_no_audit(gov_home, snap_conn):
+def test_cli_snapshot_delete_dry_run_writes_nothing_but_is_still_audited(
+    gov_home, snap_conn
+):
+    """The invariant is "a dry_run MAY read; it must never write" — not "zero
+    I/O". A preview that cannot read cannot answer "would this be refused?", and
+    the CLI not auditing its previews was the outlier: the MCP path already
+    audits them, because @governed_tool wraps the tool regardless of dry_run."""
     from xcpng_aiops.cli import app
 
     result = CliRunner().invoke(app, ["snapshot", "delete", "snap-1", "--dry-run"])
     assert result.exit_code == 0
     assert "DRY-RUN" in result.output
     snap_conn.delete.assert_not_called()
-    assert not (gov_home / "audit.db").exists()
+    snap_conn.post.assert_not_called()
+    assert _audit_tools(gov_home / "audit.db") == ["snapshot_delete"]
 
 
 @pytest.mark.unit
@@ -110,21 +129,22 @@ def test_cli_snapshot_revert_confirmed_goes_through_governance(gov_home, snap_co
 
 
 @pytest.mark.unit
-def test_cli_vm_stop_dry_run_then_confirmed(gov_home, vm_conn):
+def test_cli_vm_stop_dry_run_writes_nothing_then_confirmed_write_lands(gov_home, vm_conn):
     from xcpng_aiops.cli import app
 
     runner = CliRunner()
     result = runner.invoke(app, ["vm", "stop", "vm-1", "--dry-run"])
     assert result.exit_code == 0
     assert "DRY-RUN" in result.output
-    vm_conn.post.assert_not_called()
+    vm_conn.post.assert_not_called()  # a dry_run may read; it must never write
+    assert _audit_tools(gov_home / "audit.db") == ["vm_stop"], "previews are audited"
 
     result = runner.invoke(app, ["vm", "stop", "vm-1"], input="y\ny\n")
     assert result.exit_code == 0, result.output
     vm_conn.post.assert_called_once_with(
         "/vms/vm-1/actions/clean_shutdown", params={"sync": "true"}
     )
-    assert _audit_tools(gov_home / "audit.db") == ["vm_stop"]
+    assert _audit_tools(gov_home / "audit.db") == ["vm_stop", "vm_stop"]
 
 
 @pytest.mark.unit

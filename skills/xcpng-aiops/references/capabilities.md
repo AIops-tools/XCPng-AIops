@@ -36,7 +36,7 @@ infer a value for it.
 | `vm_stats(vm_id, granularity?)` | low | Recent RRD averages: cpuAvgPercent, memoryUsedPercent. |
 | `vm_health_rca(vm_id?)` | low | **RCA**: halted-unexpectedly (auto-poweron/HA set), paused, suspended, guest-tools-missing, cpu-pressure (≥90%), memory-pressure (≥90%). Cause + severity + evidence + action per finding. Fleet mode caps stats pulls at 5 running VMs. |
 | `vm_start(vm_id, dry_run?)` | medium | Start a VM. **Undo: vm_stop** (recorded). |
-| `vm_stop(vm_id, force?, dry_run?)` | medium | Clean shutdown (hard with force). **Undo: vm_start** — only recorded if the VM was Running before. |
+| `vm_stop(vm_id, force?, dry_run?)` | medium | Clean shutdown (hard with force). **Undo: vm_start** — only recorded if the VM was Running before. Refuses the VM declared as running XO (`xo_self_vm_uuid` on the target); with none declared there is **no** such guard — XO has no self endpoint, so it fails open rather than guess. `dry_run` refuses the declared uuid too, and returns `selfVmHint` (a possible IP coincidence, never a verdict, never a block — on either path). |
 | `vm_reboot(vm_id, force?, dry_run?)` | medium | Clean/hard reboot. Prior power state captured; **no undo**. |
 | `vm_migrate(vm_id, host_id, dry_run?)` | medium | Live-migrate. Captures the REAL source host before moving; **undo: migrate back to it**. |
 
@@ -90,6 +90,10 @@ infer a value for it.
 
 ## Write semantics
 
-- `dry_run=true` → preview dict (`{"dryRun": true, "would...": {...}}`), **no API call, no undo recorded**.
+- `dry_run=true` → preview dict (`{"dryRun": true, "would...": {...}}`). A dry-run **may
+  read** — resolving ids and evaluating guards is what lets it tell you the call would be
+  refused — but **never writes** and records **no undo**. It runs through `@governed_tool`
+  like any other call, so it is audited and it can be refused. The CLI `--dry-run` routes
+  through the same governed function, so both entry points behave identically.
 - Successful reversible writes return `_undo_id` referencing the recorded inverse descriptor in `~/.xcpng-aiops/undo.db`. Undo execution is an external orchestrator's job — recording only.
 - High-risk tools are denied without a named approver (`XCPNG_AUDIT_APPROVED_BY`) unless an operator-authored rules.yaml says otherwise.

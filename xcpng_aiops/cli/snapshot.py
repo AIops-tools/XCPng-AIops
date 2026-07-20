@@ -16,6 +16,7 @@ from xcpng_aiops.cli._common import (
     double_confirm,
     dry_run_print,
     get_connection,
+    governed,
     print_truncation_note,
 )
 from xcpng_aiops.ops import vms
@@ -51,13 +52,16 @@ def snapshot_create(
 ) -> None:
     """Snapshot a VM (governed; inverse delete of THAT snapshot is recorded)."""
     if dry_run:
+        preview = governed(
+            gov.snapshot_create(vm_id=vm_id, name=name, dry_run=True, target=target)
+        )
         dry_run_print(
             operation="snapshot_create",
             api_call=f"POST /vms/{vm_id}/actions/snapshot?sync=true",
-            parameters={"name_label": name},
+            parameters=preview.get("wouldSnapshot", {}),
         )
         return
-    result = gov.snapshot_create(vm_id=vm_id, name=name, target=target)
+    result = governed(gov.snapshot_create(vm_id=vm_id, name=name, target=target))
     snap_id = result.get("id") if isinstance(result, dict) else ""
     console.print(f"[green]Created snapshot '{name}' of VM {vm_id} (id: {snap_id})[/]")
 
@@ -69,13 +73,17 @@ def snapshot_delete(
 ) -> None:
     """Delete a VM snapshot by uuid (IRREVERSIBLE — double confirm)."""
     if dry_run:
+        preview = governed(
+            gov.snapshot_delete(snapshot_id=snapshot_id, dry_run=True, target=target)
+        )
         dry_run_print(
             operation="snapshot_delete",
             api_call=f"DELETE /vm-snapshots/{snapshot_id}",
+            parameters=preview.get("wouldDelete", {}),
         )
         return
     double_confirm("delete", f"snapshot {snapshot_id}")
-    gov.snapshot_delete(snapshot_id=snapshot_id, target=target)
+    governed(gov.snapshot_delete(snapshot_id=snapshot_id, target=target))
     console.print(f"[green]Deleted snapshot {snapshot_id}[/]")
 
 
@@ -86,11 +94,15 @@ def snapshot_revert(
 ) -> None:
     """Revert a VM to a snapshot (IRREVERSIBLE — replaces current state)."""
     if dry_run:
+        preview = governed(
+            gov.snapshot_revert(snapshot_id=snapshot_id, dry_run=True, target=target)
+        )
         dry_run_print(
             operation="snapshot_revert",
             api_call=f"POST /vm-snapshots/{snapshot_id}/actions/revert?sync=true",
+            parameters=preview.get("wouldRevert", {}),
         )
         return
     double_confirm("revert to", f"snapshot {snapshot_id}")
-    gov.snapshot_revert(snapshot_id=snapshot_id, target=target)
+    governed(gov.snapshot_revert(snapshot_id=snapshot_id, target=target))
     console.print(f"[green]Reverted to snapshot {snapshot_id}[/]")
