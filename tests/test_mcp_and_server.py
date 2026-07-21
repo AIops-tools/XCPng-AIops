@@ -242,7 +242,14 @@ def test_cli_undo_apply_confirmed_dispatches_inverse(gov_home, undo_probe):
 def test_undo_apply_passes_target_and_bad_params(gov_home, undo_probe):
     from mcp_server.tools import undo as gov
 
-    # undo_params stored as invalid JSON → falls back to {} and still dispatches
+    # Corrupt undo_params must REFUSE, not fall back to {} and dispatch.
+    #
+    # This test previously asserted the opposite ("falls back to {} and still
+    # dispatches", applied is True) — it had encoded the defect as the spec.
+    # Defaulting called the inverse tool with NO ARGUMENTS: where every
+    # parameter has a default that runs a real, unintended operation, and the
+    # dry-run rendered it as a legitimate no-arg inverse. The recorded intent is
+    # gone, so there is nothing that can honestly be applied.
     store = undo_mod.get_undo_store()
     uid = store.record(
         skill="probe", tool="orig", undo_descriptor={"tool": "_undo_probe2", "params": {}}
@@ -258,7 +265,9 @@ def test_undo_apply_passes_target_and_bad_params(gov_home, undo_probe):
     finally:
         conn.close()
     out = gov.undo_apply(undo_id=uid, target="xo1")
-    assert out["applied"] is True
+    assert "applied" not in out, "a refusal must not report an outcome"
+    assert "unreadable recorded parameters" in out["error"]
+    assert "_undo_probe2" in out["error"], "the error names the inverse to run by hand"
 
 
 def _audit_tools(db_path):

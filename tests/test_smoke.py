@@ -35,11 +35,6 @@ EXPECTED_TOOLS = {
     "task_list",
 }
 
-WRITE_TOOLS = {
-    "vm_start", "vm_stop", "vm_reboot", "vm_migrate",
-    "snapshot_create", "snapshot_delete", "snapshot_revert", "sr_rescan",
-}
-
 
 @pytest.mark.unit
 def test_all_modules_import():
@@ -180,7 +175,8 @@ def test_every_mcp_tool_is_governed_by_harness():
 @pytest.mark.unit
 def test_risk_tiers_are_correct():
     """Irreversible snapshot delete/revert = high; every other write (including
-    the metadata-only SR rescan) = medium, so read-only mode hides them all."""
+    the metadata-only SR rescan) = medium — the descriptive risk tier each
+    carries into its audit row."""
     from mcp_server.tools import snapshots as snap_tools
     from mcp_server.tools import srs as sr_tools
     from mcp_server.tools import vm_actions as vm_tools
@@ -347,3 +343,33 @@ def test_connection_manager_registers_for_atexit_cleanup():
     conn_mod._close_all_managers()
     assert closed["n"] == 1
     assert mgr.list_connected() == []
+
+
+@pytest.mark.unit
+def test_risk_level_agrees_with_read_write_docstring_tag():
+    """The two write-markers must never drift apart.
+
+    A tool's ``risk_level`` decides its audit tier and whether it gets dry-run /
+    undo handling; its ``[READ]``/``[WRITE]`` docstring tag is what the docs and
+    capability tables are built from. If a ``[WRITE]`` were left ``risk_level=low``
+    it would be audited as a read and skip the write machinery — this test caught
+    16 such mislabels line-wide once, so it is kept even though read-only mode
+    (its original motivation) is gone.
+    """
+    from mcp_server import server
+
+    untagged, mismatched = [], []
+    for name, tool in server.mcp._tool_manager._tools.items():
+        doc = (tool.fn.__doc__ or "").lstrip()
+        if doc.startswith("[READ]"):
+            tagged_as_read = True
+        elif doc.startswith("[WRITE]"):
+            tagged_as_read = False
+        else:
+            untagged.append(name)
+            continue
+        if tagged_as_read != (getattr(tool.fn, "_risk_level", "low") == "low"):
+            mismatched.append(name)
+
+    assert not untagged, f"tools missing a [READ]/[WRITE] docstring tag: {untagged}"
+    assert not mismatched, f"risk_level disagrees with the docstring tag: {mismatched}"

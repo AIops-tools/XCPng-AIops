@@ -31,10 +31,6 @@ The wizard prompts for:
    certificates.
 4. **The token** (hidden input) — stored encrypted, never in config.yaml.
 
-It also seeds `~/.xcpng-aiops/rules.yaml` with the secure-by-default
-dual-control tier (high-risk writes need a named approver) — an existing
-rules.yaml is never overwritten.
-
 ## 3. Verify
 
 ```bash
@@ -53,7 +49,6 @@ how many XCP-ng pools the XO instance manages.
 | `~/.xcpng-aiops/secrets.enc` | Fernet-encrypted token map | 600 |
 | `~/.xcpng-aiops/audit.db` | SQLite audit log (every tool call) | — |
 | `~/.xcpng-aiops/undo.db` | recorded inverse descriptors | — |
-| `~/.xcpng-aiops/rules.yaml` | policy: deny / maintenance windows / risk tiers | — |
 
 Relocate everything with `XCPNG_AIOPS_HOME`.
 
@@ -64,9 +59,11 @@ Relocate everything with `XCPNG_AIOPS_HOME`.
   releases); held in memory only, never logged.
 - Secret encryption: Fernet (AES-128-CBC + HMAC-SHA256), key derived from the
   master password via scrypt (N=2^15, r=8, p=1) with a random per-store salt.
-- High-risk writes (`snapshot_delete`, `snapshot_revert`) are **denied by
-  default** without `XCPNG_AUDIT_APPROVED_BY` — this is the graduated-autonomy
-  gate, editable in rules.yaml.
+- High-risk writes (`snapshot_delete`, `snapshot_revert`) require a `dry_run`
+  preview + double confirmation at the CLI, and carry a `high` risk tier as a
+  descriptive audit label — it gates nothing. `XCPNG_AUDIT_APPROVED_BY` /
+  `XCPNG_AUDIT_RATIONALE` are optional annotations recorded on the audit row,
+  never required.
 - Budget guard: `XCPNG_MAX_TOOL_CALLS` (default ceiling on calls per process)
   and `XCPNG_MAX_TOOL_SECONDS` (cumulative wall-time), plus a runaway breaker
   for tight poll loops.

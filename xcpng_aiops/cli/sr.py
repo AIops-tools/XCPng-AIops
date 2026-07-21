@@ -83,7 +83,7 @@ def sr_usage_rca(target: TargetOption = None) -> None:
 @sr_app.command("rescan")
 @cli_errors
 def sr_rescan(sr_id: str, target: TargetOption = None, dry_run: DryRunOption = False) -> None:
-    """Rescan an SR (metadata refresh — governed write, refused in read-only mode)."""
+    """Rescan an SR (metadata refresh — governed write, audited)."""
     if dry_run:
         preview = governed(gov.sr_rescan(sr_id=sr_id, dry_run=True, target=target))
         dry_run_print(

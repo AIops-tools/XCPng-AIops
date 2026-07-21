@@ -9,17 +9,32 @@ the tool now enforces them itself.
 The distinction matters. A guardrail in a prompt is a request. A guardrail in the
 harness is a guarantee. Anything below that we could move into the harness, we did.
 
-## What the tool now enforces — do not waste prompt budget on these
+## Authorization is not this tool's job — decide it where it belongs
+
+Whether a write should happen is your decision, or the account's. The tool does
+not gate it — there is no read-only switch and no approval prompt to configure.
+The two right places to control read vs write:
+
+- **The Xen Orchestra account whose token you connect with.** Give that XO user
+  a read-only ACL, or scope its personal token down. A write then fails at Xen
+  Orchestra, which is the only place the permission actually lives — a revoked
+  permission cannot be argued around by a model, but a skill-side flag can.
+- **Your agent's system prompt.** If you want an observe-only session, tell the
+  model not to call the write tools (they are clearly tagged `[WRITE]`).
+
+What the tool *does* guarantee is that you can always see what happened:
+
+## What the tool enforces — do not waste prompt budget on these
 
 | You might be tempted to prompt | Why you don't need to |
 |---|---|
-| "Work read-only, never modify anything" | Set `XCPNG_READ_ONLY=1`. Write tools are then **not registered at all** — `vm_start`, `vm_stop`, `vm_reboot`, `vm_migrate`, `snapshot_create/delete/revert`, `sr_rescan` and `undo_apply` never appear in the tool list, so the model cannot call one even if it tries. The `@governed_tool` harness independently refuses writes, so the CLI is covered too. |
 | "Don't invent a value when a field is missing" | A field Xen Orchestra did not return comes back as `null`, never as `""`. A VM with no `name_label`, a task with no `properties.name`, an SR with no `content_type` — all report `null`. Absent and empty are distinguishable in the payload. |
 | "Tell me if the output was cut off" | Every listing returns `{"vms": [...], "returned": N, "limit": L, "truncated": true/false}` (same shape with `srs`, `vdis`, `snapshots`, `tasks`, `jobs`, `logs`, `undos`). Truncation is **measured** — the full collection length client-side, or one over-fetched record for `backup_log_list` — never guessed from the row count matching the limit. The RCA tools report `inputTruncated` when the listing they correlated over was itself capped. |
 | "Preserve the ordering / tell me what's most urgent" | RCA findings carry an explicit `severity` (`high`/`medium`/`low`) and are already sorted worst-first, each with the measured number in `evidence` and a concrete `action`. Priority is in the payload, not implied by list position. |
-| "Confirm before anything destructive" | Destructive operations require a `dry_run` preview + double confirmation at the CLI, and a named approver (`XCPNG_AUDIT_APPROVED_BY`) for the high-risk tier (`snapshot_delete`, `snapshot_revert`). |
+| "Confirm before anything destructive" | Destructive operations (`snapshot_delete`, `snapshot_revert`, `vm_stop`/`reboot`/`migrate`) require a `dry_run` preview + double confirmation at the CLI. Reversible writes capture the prior state so the undo token can restore it. |
 | "Never stop the Xen Orchestra VM itself" | **Only if the operator declared it.** Set `xo_self_vm_uuid` on the target and `vm_stop` refuses exactly that uuid on both the MCP and CLI paths. Undeclared, nothing is refused — XO exposes no self endpoint and its token carries no claims, so the tool cannot work this out and fails open rather than guess. Keep a prompt line for this if you cannot declare the uuid. |
-| "Log what you did" | Every call is audited to `~/.xcpng-aiops/audit.db` regardless of what the model says it did. |
+| "Log what you did" | Every governed call is audited to `~/.xcpng-aiops/audit.db` regardless of what the model says it did — and the CLI writes the same row the MCP path does, so there is no unaudited entry point. |
+| "Don't get stuck retrying" | The runaway guard trips a circuit breaker if the same call is hammered in a tight loop — a stuck agent is stopped rather than left to burn calls and time. |
 
 ## What still needs a prompt
 
@@ -72,17 +87,20 @@ SCOPE
 
 ## Recommended setup for a local model
 
+Start with a connection that *cannot* write, verify, and widen the account's
+permission only when you trust the setup — snapshot delete/revert are
+irreversible, and stopping the wrong VM can be the one XO itself runs on:
+
 ```bash
-# Read-only until you trust the setup — this is enforced, not advisory.
-export XCPNG_READ_ONLY=1
+# Give the Xen Orchestra account a read-only ACL, or scope its personal token
+# down, so writes fail at XO rather than depending on a skill-side flag. Then:
 xcpng-aiops doctor
 ```
 
-Then, when you are ready to allow writes, unset it and set an approver so the
-high-risk tier has an accountable name on it:
+Optionally annotate the audit trail with who is operating and why — recorded on
+every row, never required:
 
 ```bash
-unset XCPNG_READ_ONLY
 export XCPNG_AUDIT_APPROVED_BY="your.name@example.com"
 export XCPNG_AUDIT_RATIONALE="scheduled maintenance window 2026-07-20"
 ```

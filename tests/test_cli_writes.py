@@ -95,6 +95,53 @@ def test_cli_snapshot_delete_dry_run_writes_nothing_but_is_still_audited(
 
 
 @pytest.mark.unit
+def test_cli_dry_run_refusal_exits_nonzero_and_prints_no_success_banner(
+    gov_home, monkeypatch
+):
+    """Routing the preview through the twin exists so a guard is REACHABLE from
+    the preview. When the twin refuses, the CLI must print that teaching message
+    and exit non-zero. Printing the banner anyway is the weak-model trap this
+    line designs against: a green preview followed by a refusal reads to a model
+    as a transient blip, and it retries.
+    """
+    import mcp_server.tools.snapshots as gov_snapshots
+    from xcpng_aiops.cli import app
+
+    monkeypatch.setattr(
+        gov_snapshots,
+        "snapshot_delete",
+        lambda **kw: {"error": "refused: snap-1 is the only restore point for vm-1"},
+    )
+    result = CliRunner().invoke(app, ["snapshot", "delete", "snap-1", "--dry-run"])
+    assert result.exit_code == 1
+    assert "only restore point" in " ".join(result.output.split())
+    assert "DRY-RUN" not in result.output
+
+
+@pytest.mark.unit
+def test_cli_dry_run_banner_is_rendered_from_the_twins_returned_preview(
+    gov_home, monkeypatch
+):
+    """An ordinary preview still renders — and renders from the RETURNED dict,
+    not a hand-written string that drifts from what the tool actually does. The
+    twin is stubbed to report a DIFFERENT id than the one on the command line;
+    a hardcoded banner would echo the argument and miss it.
+    """
+    import mcp_server.tools.snapshots as gov_snapshots
+    from xcpng_aiops.cli import app
+
+    monkeypatch.setattr(
+        gov_snapshots,
+        "snapshot_delete",
+        lambda **kw: {"dryRun": True, "wouldDelete": {"snapshot_id": "snap-42"}},
+    )
+    result = CliRunner().invoke(app, ["snapshot", "delete", "snap-1", "--dry-run"])
+    assert result.exit_code == 0, result.output
+    assert "DRY-RUN" in result.output
+    assert "snapshot_id = snap-42" in " ".join(result.output.split())
+
+
+@pytest.mark.unit
 def test_cli_snapshot_delete_confirmed_goes_through_governance(gov_home, snap_conn):
     """Confirmed CLI write must execute via the governed twin: the API call runs
     AND an audit row lands in audit.db (this is what the reroute fix bought)."""

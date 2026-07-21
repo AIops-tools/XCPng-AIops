@@ -17,9 +17,9 @@ listing they correlated over was itself capped.
 **Absent vs empty.** A field XO did not return is `null`, never `""` — do not
 infer a value for it.
 
-**Read-only mode.** With `XCPNG_READ_ONLY=1` every tool below with a risk above
-`low` is unregistered and never appears in the tool list. See
-`agent-guardrails.md`.
+**Authorization.** The tool records; it does not gate. Whether a write may run
+is the agent's decision or the connecting Xen Orchestra account's permissions —
+there is no read-only switch or approval gate. See `agent-guardrails.md`.
 
 ## Overview
 
@@ -63,7 +63,7 @@ infer a value for it.
 | `sr_get(sr_id)` | low | One SR detail. |
 | `vdi_list(sr?, orphaned_only?, limit?)` | low | VDIs; `orphaned_only=true` → disks attached to no VM (reclaim candidates). |
 | `sr_usage_rca()` | low | **RCA**: sr-critical (≥95%), sr-near-full (≥85%), sr-overcommitted (allocation > capacity), orphaned-vdis with reclaimable bytes per SR. ISO SRs excluded. |
-| `sr_rescan(sr_id, dry_run?)` | medium | Metadata refresh; no data change, no undo. Lowest-impact write, but still a write — hidden in read-only mode. |
+| `sr_rescan(sr_id, dry_run?)` | medium | Metadata refresh; no data change, no undo. Lowest-impact write, but still a write. |
 
 ## Snapshots
 
@@ -96,4 +96,4 @@ infer a value for it.
   like any other call, so it is audited and it can be refused. The CLI `--dry-run` routes
   through the same governed function, so both entry points behave identically.
 - Successful reversible writes return `_undo_id` referencing the recorded inverse descriptor in `~/.xcpng-aiops/undo.db`. Undo execution is an external orchestrator's job — recording only.
-- High-risk tools are denied without a named approver (`XCPNG_AUDIT_APPROVED_BY`) unless an operator-authored rules.yaml says otherwise.
+- High-risk tools (`snapshot_delete`, `snapshot_revert`) require a `dry_run` preview + double confirmation at the CLI. `XCPNG_AUDIT_APPROVED_BY` / `XCPNG_AUDIT_RATIONALE` are optional annotations recorded on the audit row — never required, never blocking.

@@ -89,18 +89,15 @@ xcpng-aiops secret rotate-password                  # re-encrypt under a new mas
 | Variable | Purpose |
 |----------|---------|
 | `XCPNG_AIOPS_MASTER_PASSWORD` | Unlock `secrets.enc` non-interactively (MCP/CI). |
-| `XCPNG_AIOPS_HOME` | Relocate `~/.xcpng-aiops` (audit.db, undo.db, rules.yaml). |
+| `XCPNG_AIOPS_HOME` | Relocate `~/.xcpng-aiops` (audit.db, undo.db). |
 | `XCPNG_AIOPS_CONFIG` | Alternate config.yaml path for the MCP server. |
-| `XCPNG_AUDIT_APPROVED_BY` / `XCPNG_AUDIT_RATIONALE` | Named approver + reason for high-risk writes. |
+| `XCPNG_AUDIT_APPROVED_BY` / `XCPNG_AUDIT_RATIONALE` | Optional approver/rationale annotations recorded on the audit row (never required). |
 | `XCPNG_MAX_TOOL_CALLS` / `XCPNG_MAX_TOOL_SECONDS` | Budget ceilings. |
 | `XCPNG_RUNAWAY_MAX` / `XCPNG_RUNAWAY_WINDOW_SEC` | Runaway-loop circuit breaker. |
 | `XCPNG_<TARGET>_TOKEN` | Legacy plaintext token fallback (deprecated). |
 
-## Truncation and read-only mode
+## Truncation
 
 Listing commands cap their output at `--limit` (default 200) and print
 `… showing N of more … — truncated, re-run with a higher --limit` when there
 was more; the JSON itself carries `"truncated": true`.
-
-`export XCPNG_READ_ONLY=1` makes every write command refuse (and removes the
-write tools from the MCP server entirely). See `agent-guardrails.md`.

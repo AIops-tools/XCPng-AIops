@@ -6,7 +6,7 @@
 
 AI-powered **XCP-ng** operations **via Xen Orchestra's REST API** with a
 **built-in governance harness** — unified audit log, policy engine,
-token/runaway budget guard, undo-token recording, and graduated-autonomy risk
+token/runaway budget guard, undo-token recording, and descriptive risk
 tiers. Built for homelabs and small/self-hosted XCP-ng fleets that want an AI
 agent to triage VM health, storage pressure, backup failures, and patch
 posture — with every write audited, previewable, and (where honest)
@@ -51,40 +51,24 @@ reversible. Self-contained: no dependencies beyond `httpx` and the MCP SDK.
 3. **`backup_failure_rca`** — failed/skipped/interrupted XO backup runs classified: **vdi-chain** (coalesce not finished), **quiesce** (guest VSS), **transport** (remote unreachable), **storage-full**, unknown — with per-job counts and sample messages.
 4. **`pool_patch_ha_posture`** — hosts missing patches, hosts pending reboot, **version skew** across a pool's hosts (breaks live migration / rolling updates), multi-host pools without HA.
 
-## Security: read-only mode
+## What this tool does, and does not, decide
 
-This tool is meant to be handed to an AI agent, so its safety story is enforced
-by the server rather than requested in a prompt:
+It delivers XCP-ng operations — reads and writes — accurately and efficiently,
+and records every one of them. It does **not** decide whether a write is allowed
+to happen. That is the agent's judgement, or the permission of the Xen Orchestra
+account whose token you connect it with: give that XO user a read-only ACL, or
+scope its token down, and the writes fail at Xen Orchestra — the place that
+actually owns the permission.
 
-```bash
-export XCPNG_READ_ONLY=1
-```
+So there is no read-only switch, no policy file, no approval gate to configure.
+The one thing the tool guarantees is that nothing is silent: **every call, over
+MCP and over the CLI alike, lands an audit row** in `~/.xcpng-aiops/audit.db`,
+and reversible writes still capture their before-state and record an inverse.
 
-With that set, the **9 write tools are never registered**. An MCP client
-lists **20 tools instead of 29** — the writes are not hidden, not
-gated behind a flag, and not merely refused when called. They are absent from
-the session. A model cannot invoke a tool it was never offered, and cannot be
-argued into one.
-
-That distinction is the whole point. A tool that exists but refuses still invites
-retry loops and "I'll describe the call instead" behaviour from smaller models,
-and it leaves a reviewer trusting a promise. An absent tool is a fact you can
-check: connect, list the tools, and see that the writes are not there.
-
-Enforcement is two layers deep, so the switch cannot be sidestepped by changing
-entry point:
-
-| Layer | What it does | Covers |
-|---|---|---|
-| `@governed_tool` harness | refuses every non-read operation outright | MCP, CLI, and in-process callers |
-| MCP registration | write tools are removed from `list_tools()` | anything speaking MCP |
-
-Read operations are unaffected, and every call is still audited to
-`~/.xcpng-aiops/audit.db`.
-
-> The read/write split is derived from each tool's declared `risk_level`, and a
-> test asserts that this never disagrees with the `[READ]`/`[WRITE]` tag in the
-> tool's own documentation — so a write can't quietly present itself as a read.
+> Each tool declares a `risk_level`, kept in agreement with its `[READ]`/`[WRITE]`
+> documentation tag by a test, and carried into the audit row as a descriptive
+> tier — so a reviewer can see at a glance that a row was a high-risk snapshot
+> delete. It is a label, not a gate.
 
 Running a smaller / local model? See
 [agent-guardrails.md](skills/xcpng-aiops/references/agent-guardrails.md) — it lists
@@ -156,12 +140,14 @@ as a fallback with a deprecation warning (migrate with `xcpng-aiops secret migra
 
 ## Governance
 
-Every MCP tool passes through the bundled `@governed_tool` harness:
+Every MCP tool — and every CLI write, which routes through the same governed
+functions — passes through `@governed_tool`. It records; it does not authorize
+(see above).
 
-- **Audit** — every call (params, result, status, duration, risk tier, approver, rationale) lands in `~/.xcpng-aiops/audit.db` (relocate with `XCPNG_AIOPS_HOME`).
-- **Budget / runaway guard** — cumulative call and wall-time caps, plus a tight-loop circuit breaker (`XCPNG_MAX_TOOL_CALLS`, `XCPNG_MAX_TOOL_SECONDS`, `XCPNG_RUNAWAY_MAX`).
+- **Audit** — every call (tool, params with secrets redacted, result, status, duration, risk tier, and any operator-supplied approver/rationale) lands in `~/.xcpng-aiops/audit.db` (relocate with `XCPNG_AIOPS_HOME`). The CLI writes the same row the MCP path does — there is no unaudited entry point.
+- **Budget / runaway guard** — a safety backstop, not an authorization gate: cumulative call and wall-time caps plus a tight-loop circuit breaker (`XCPNG_MAX_TOOL_CALLS`, `XCPNG_MAX_TOOL_SECONDS`, `XCPNG_RUNAWAY_MAX`) stop a stuck agent from burning unbounded calls/time.
 - **Undo recording** — reversible writes record a replayable inverse descriptor to `~/.xcpng-aiops/undo.db` and return an `_undo_id`; irreversible writes record prior state only.
-- **Graduated approval** — **secure by default**: with no `~/.xcpng-aiops/rules.yaml`, high-risk operations (`snapshot_delete`, `snapshot_revert`) are **denied** unless `XCPNG_AUDIT_APPROVED_BY` names a human approver (set `XCPNG_AUDIT_RATIONALE` too). `xcpng-aiops init` seeds a starter rules.yaml with that dual-control tier; an operator-authored rules file is honoured as-is.
+- **Risk tier** — a descriptive label on the audit row derived from `risk_level`; it gates nothing.
 - **Output hygiene** — all XO-returned text is sanitized and bounded before it reaches the agent.
 
 ## 支持范围 / Supported scope

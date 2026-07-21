@@ -128,12 +128,15 @@ do not silently pass.
 - [ ] `xcpng-aiops sr rescan <sr-uuid>` → completes and is audited as a low-risk
       write.
 
-### 5. Governance actually gates
-- [ ] With no `~/.xcpng-aiops/rules.yaml`, a `high`-risk op
-      (`snapshot delete` or `snapshot revert`) is **refused** unless
-      `XCPNG_AUDIT_APPROVED_BY` is set — secure-by-default.
-- [ ] With the approver set, the op succeeds, is audited with approver and
-      rationale, and records **no** undo token (it is irreversible and says so).
+### 5. Governance records, it does not gate
+- [ ] A `high`-risk op (`snapshot delete` or `snapshot revert`) runs with no
+      approver set — the skill does not gate it — and lands an audit row with a
+      descriptive `risk_tier` (`review`) and **no** undo token (it is
+      irreversible and says so).
+- [ ] Setting `XCPNG_AUDIT_APPROVED_BY` / `XCPNG_AUDIT_RATIONALE` annotates the
+      audit row with who/why; it neither blocks the call nor is required.
+- [ ] Every CLI write lands the same audit row the MCP path does — there is no
+      unaudited entry point.
 - [ ] A tight poll loop trips the runaway budget guard rather than hammering XO.
 - [ ] A failed operation is audited with `status=error` and records no undo.
 

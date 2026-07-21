@@ -88,8 +88,8 @@ def sr_usage_rca(target: Optional[str] = None) -> dict:
 def sr_rescan(sr_id: str, dry_run: bool = False, target: Optional[str] = None) -> dict:
     """[WRITE][risk=medium] Rescan an SR (metadata refresh — no data change, no undo).
 
-    Lowest-impact write in this tool, but a write nonetheless: it is refused in
-    read-only mode and is not exposed when XCPNG_READ_ONLY is set.
+    Lowest-impact write in this tool, but a write nonetheless: it refreshes SR
+    metadata and records no undo (there is no prior state to restore).
 
     Args:
         sr_id: SR uuid (see sr_list).

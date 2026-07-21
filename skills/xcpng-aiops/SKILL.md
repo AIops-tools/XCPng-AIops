@@ -22,7 +22,7 @@ compatibility: >
   Standalone, self-governed XCP-ng operations via Xen Orchestra's REST API /rest/v0. REQUIRES a Xen Orchestra instance (XO from sources or the Xen Orchestra Appliance, 5.x) — XO is the management plane; direct per-host XAPI access is out of scope for v0.1. The governance harness (audit, policy, token/runaway budget, undo, risk-tiers) is bundled in the package — no external skill-family dependency.
   All write operations are audited to a local SQLite DB under ~/.xcpng-aiops/ (relocatable via XCPNG_AIOPS_HOME).
   Credentials: Each XO target's personal authentication token is stored ENCRYPTED in ~/.xcpng-aiops/secrets.enc (Fernet/AES-128 + scrypt-derived key) — never plaintext on disk. Run 'xcpng-aiops init' to onboard, or 'xcpng-aiops secret set <target>' to add one (create the token in the XO UI: user menu → Personal tokens, or `xo-cli --createToken`). The store is unlocked by a master password from XCPNG_AIOPS_MASTER_PASSWORD (non-interactive/MCP/CI) or an interactive prompt (CLI on a TTY). A legacy plaintext env var XCPNG_<TARGET_NAME_UPPER>_TOKEN is still honoured as a fallback with a deprecation warning (migrate with 'xcpng-aiops secret migrate'). The token is sent in headers (Authorization: Bearer + authenticationToken cookie) at request time and held only in memory; tokens are never logged or echoed.
-  Destructive operations (snapshot delete/revert, vm stop/reboot/migrate) require double confirmation at the CLI layer and support --dry-run; every write MCP tool takes a dry_run preview. A dry_run MAY read (that is how it can tell you the call would be refused) but never writes, records no undo, and is audited like any other governed call. All write tools pass through the @governed_tool decorator (pre-check + budget guard + audit + risk-tier gate). vm_start↔vm_stop record each other as inverses; vm_migrate records migrating back to the captured source host; snapshot_create records deleting the REAL snapshot id XO returned; snapshot_delete and snapshot_revert are high-risk and irreversible (capture BEFORE state, record no undo). vm_stop refuses the VM declared as running Xen Orchestra (xo_self_vm_uuid on the target) because stopping XO removes the API vm_start would travel over; that guard is opt-in and fails open when undeclared, since XO's REST API exposes no self endpoint.
+  Destructive operations (snapshot delete/revert, vm stop/reboot/migrate) require double confirmation at the CLI layer and support --dry-run; every write MCP tool takes a dry_run preview. A dry_run MAY read (that is how it can tell you the call would be refused) but never writes, records no undo, and is audited like any other governed call. All write tools pass through the @governed_tool decorator (budget guard + audit + risk-tier labelling). vm_start↔vm_stop record each other as inverses; vm_migrate records migrating back to the captured source host; snapshot_create records deleting the REAL snapshot id XO returned; snapshot_delete and snapshot_revert are high-risk and irreversible (capture BEFORE state, record no undo). vm_stop refuses the VM declared as running Xen Orchestra (xo_self_vm_uuid on the target) because stopping XO removes the API vm_start would travel over; that guard is opt-in and fails open when undeclared, since XO's REST API exposes no self endpoint.
   Webhooks: none — no outbound network calls beyond the configured Xen Orchestra REST API endpoint.
   SSL: verify_ssl defaults to true; disable only for self-signed lab certificates.
   Transitive dependencies: httpx (HTTP client) and the MCP SDK. No post-install scripts or background services.
@@ -33,7 +33,7 @@ compatibility: >
 
 > **Disclaimer**: This is a community-maintained open-source project and is **not affiliated with, endorsed by, or sponsored by Vates, the XCP-ng project, or the Xen Orchestra project.** "XCP-ng", "Xen Orchestra", and "Xen" are trademarks of their owners. Source code is publicly auditable at [github.com/AIops-tools/XCPng-AIops](https://github.com/AIops-tools/XCPng-AIops) under the MIT license.
 
-Governed XCP-ng operations via **Xen Orchestra's REST API** — **29 MCP tools**, every one wrapped with the bundled `@governed_tool` harness: a local unified audit log under `~/.xcpng-aiops/`, policy engine, token/runaway budget guard, undo-token recording, and graduated-autonomy risk tiers. The XO authentication token is stored **encrypted** (`~/.xcpng-aiops/secrets.enc`, Fernet + scrypt) — never plaintext on disk.
+Governed XCP-ng operations via **Xen Orchestra's REST API** — **29 MCP tools**, every one wrapped with the bundled `@governed_tool` harness: a local unified audit log under `~/.xcpng-aiops/`, policy engine, token/runaway budget guard, undo-token recording, and descriptive risk tiers. The XO authentication token is stored **encrypted** (`~/.xcpng-aiops/secrets.enc`, Fernet + scrypt) — never plaintext on disk.
 
 > **Requires a Xen Orchestra instance** (5.x with `/rest/v0`) — XO is the management plane; per-host XAPI is out of scope for v0.1. **Standalone**: the governance harness is bundled in the package (`xcpng_aiops.governance`) — xcpng-aiops has no external skill-family dependency. Coverage is common operations, not exhaustive; verification status and the live-run checklist are in `docs/VERIFICATION.md`.
 
@@ -158,7 +158,7 @@ write accepts `--dry-run`; destructive ones also double-confirm.
 | Tasks | `task_list` | Read |
 | Undo | `undo_list`, `undo_apply` | Read + replay |
 
-**Harness features that light up**: `vm_start`↔`vm_stop` record each other as inverses (with `_undo_id`); `vm_migrate` captures the REAL source host BEFORE moving and records "migrate back"; `snapshot_create` captures the REAL snapshot id from the XO response and records "delete THAT snapshot". `snapshot_delete` and `snapshot_revert` are `risk_level=high`, capture BEFORE state, and declare no undo (irreversible). Every write takes `dry_run=True` (may read, never writes; no undo; audited). All 29 tools are audit-logged under `~/.xcpng-aiops/` and pass through the policy pre-check + budget/runaway guard + graduated risk-tier gate. Start any triage with `overview`.
+**Harness features that light up**: `vm_start`↔`vm_stop` record each other as inverses (with `_undo_id`); `vm_migrate` captures the REAL source host BEFORE moving and records "migrate back"; `snapshot_create` captures the REAL snapshot id from the XO response and records "delete THAT snapshot". `snapshot_delete` and `snapshot_revert` are `risk_level=high`, capture BEFORE state, and declare no undo (irreversible). Every write takes `dry_run=True` (may read, never writes; no undo; audited). All 29 tools are audit-logged under `~/.xcpng-aiops/` and pass through the budget/runaway guard, each carrying a descriptive risk tier into its audit row. Start any triage with `overview`.
 
 ## CLI Quick Reference
 
@@ -194,7 +194,7 @@ xcpng-aiops mcp                                     # start MCP server (stdio)
 
 See `references/cli-reference.md` for the full command list, and
 `references/agent-guardrails.md` when driving these tools with a smaller /
-local model (read-only mode, the enforced guardrails, and a ready system prompt).
+local model (the guardrails the tool enforces for you, and a ready system prompt).
 
 ## Troubleshooting
 
@@ -221,14 +221,19 @@ Your XO instance is reachable but has no XCP-ng servers connected — add them i
 
 ## Audit & Safety
 
-All operations are automatically audited via the bundled `@governed_tool` decorator (`xcpng_aiops.governance`):
-- XO token stored **encrypted** in `~/.xcpng-aiops/secrets.enc` (Fernet/AES-128 + scrypt key derivation; chmod 600) — never plaintext on disk; the master password is never stored, only a per-store salt + ciphertext
-- Every tool call logged to `~/.xcpng-aiops/audit.db` (local SQLite audit DB; relocate with `XCPNG_AIOPS_HOME`)
-- Policy rules enforced via `~/.xcpng-aiops/rules.yaml` (deny rules, maintenance windows, risk tiers)
-- **Secure by default**: with no `~/.xcpng-aiops/rules.yaml`, high-risk operations are denied unless `XCPNG_AUDIT_APPROVED_BY` names an approver (set `XCPNG_AUDIT_RATIONALE` too). `xcpng-aiops init` seeds a starter rules.yaml; an operator-authored rules file is honoured as-is.
-- Budget / runaway guard caps cumulative tool calls and wall-time, and trips on tight task-poll loops
-- Undo store records replayable inverse descriptors for `vm_start`/`vm_stop`/`vm_migrate`/`snapshot_create`
-- Graduated-autonomy risk tiers gate write operations (require a recorded approver for the highest tiers)
+The skill delivers reads and writes and records them; it does **not** decide
+whether a write is permitted. That is your agent's judgement, or the permission
+of the Xen Orchestra account whose token you connect it with (give that XO user
+a read-only ACL or scope its token down — writes then fail at Xen Orchestra).
+There is no read-only switch, policy file, or approval gate.
+
+- **Audit is the guarantee, and it is not bypassable.** Every operation — MCP and CLI alike — is logged to `~/.xcpng-aiops/audit.db` (relocatable via `XCPNG_AIOPS_HOME`): params (secrets redacted), result, status, duration, and the risk tier. The CLI writes the same row the MCP path does.
+- The XO token is stored **encrypted** in `~/.xcpng-aiops/secrets.enc` (Fernet/AES-128 + scrypt key derivation; chmod 600) — never plaintext on disk; the master password is never stored, only a per-store salt + ciphertext.
+- `XCPNG_AUDIT_APPROVED_BY` / `XCPNG_AUDIT_RATIONALE` are optional annotations recorded on the audit row (who/why); they are never required and never block.
+- **Budget / runaway guard** — a safety backstop, not authorization: caps cumulative tool calls and wall-time, and trips on tight task-poll loops.
+- Writes support `--dry-run` / `dry_run=True` and double confirmation at the CLI; CLI writes execute through the same governed tools, so they are audited + undo-recorded.
+- Reversible writes (`vm_start`/`vm_stop`/`vm_migrate`/`snapshot_create`) capture the real before-state and record a replayable inverse descriptor; `snapshot_delete`/`snapshot_revert` are `risk=high`, irreversible, and declare no undo.
+- **Risk tier** is a descriptive label on the audit row derived from `risk_level`; it gates nothing.
 
 The harness is bundled in the package — no external dependency, no manual setup. See `references/setup-guide.md` for security details.
 

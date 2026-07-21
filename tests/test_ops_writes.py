@@ -8,11 +8,42 @@ params match its signature.
 
 from __future__ import annotations
 
+import sqlite3
 from unittest.mock import MagicMock
 
 import pytest
 
+import xcpng_aiops.governance.audit as audit_mod
+import xcpng_aiops.governance.policy as policy_mod
 import xcpng_aiops.governance.undo as undo_mod
+
+
+@pytest.fixture(autouse=True)
+def gov_home(tmp_path, monkeypatch):
+    """Point the harness at a throwaway home so audit rows can be asserted.
+
+    Autouse, not opt-in: every tool in this file is a GOVERNED write, so every
+    one of them lands an audit row. Without the redirect they land in the
+    developer's real ``~/.xcpng-aiops/audit.db`` — the suite quietly writes to
+    the machine it runs on, and the rows it asserts on are polluted by whatever
+    ran before. Tests that assert on the rows take the yielded path.
+    """
+    monkeypatch.setenv("XCPNG_AIOPS_HOME", str(tmp_path))
+    audit_mod.reset_engine()
+    policy_mod.reset_policy_engine()
+    undo_mod.reset_undo_store()
+    yield tmp_path
+    audit_mod.reset_engine()
+    policy_mod.reset_policy_engine()
+    undo_mod.reset_undo_store()
+
+
+def _audit_tools(db_path) -> list[str]:
+    conn = sqlite3.connect(db_path)
+    try:
+        return [r[0] for r in conn.execute("SELECT tool FROM audit_log ORDER BY id")]
+    finally:
+        conn.close()
 
 
 @pytest.fixture
@@ -168,7 +199,36 @@ def test_vm_migrate_without_captured_source_records_no_undo(vm_conn, undo_record
     assert undo_recorder == []
 
 
-# ── Dry-run previews (no client call, no undo) ───────────────────────────────
+# ── Dry-run previews: audited, and never mutating ────────────────────────────
+#
+# The invariant is "a dry_run MAY read; it must never write" — NOT "a dry_run
+# makes no calls at all". A preview that cannot read cannot answer "would this
+# be refused?", and @governed_tool wraps the tool regardless of dry_run, so a
+# preview lands an audit row like any other governed call. What survives from
+# the old rule is the undo half: the harness deliberately records no undo token
+# for a preview, because a preview leaves nothing to invert.
+
+MUTATING_VERBS = ("post", "delete")
+
+
+def _assert_never_wrote(conn) -> None:
+    """Assert not one mutating verb of the XO transport was called."""
+    for verb in MUTATING_VERBS:
+        getattr(conn, verb).assert_not_called()
+
+
+@pytest.mark.unit
+def test_the_mutating_verb_list_still_matches_the_transport():
+    """MUTATING_VERBS is hand-maintained while the connections under test are
+    MagicMocks, which answer to any attribute. A verb added to XoConnection and
+    forgotten here would silently weaken every "never wrote" assertion below
+    into checking a subset of the write surface, so pin that surface: adding a
+    verb must fail here and force a decision, not pass quietly.
+    """
+    from xcpng_aiops.connection import XoConnection
+
+    public = {n for n in vars(XoConnection) if not n.startswith("_")}
+    assert public == set(MUTATING_VERBS) | {"get", "request", "target", "close"}
 
 
 @pytest.mark.unit
@@ -181,15 +241,16 @@ def test_vm_migrate_without_captured_source_records_no_undo(vm_conn, undo_record
         ("vm_migrate", {"vm_id": "vm-1", "host_id": "host-dst"}),
     ],
 )
-def test_vm_action_dry_run_makes_no_call_and_no_undo(
-    vm_conn, undo_recorder, tool_name, kwargs
+def test_vm_action_dry_run_is_audited_and_never_writes(
+    gov_home, vm_conn, undo_recorder, tool_name, kwargs
 ):
     from mcp_server.tools import vm_actions as gov
 
     result = getattr(gov, tool_name)(dry_run=True, **kwargs)
     assert result["dryRun"] is True
-    vm_conn.post.assert_not_called()
-    assert undo_recorder == []
+    _assert_never_wrote(vm_conn)
+    assert _audit_tools(gov_home / "audit.db") == [tool_name], "previews are audited"
+    assert undo_recorder == []  # nothing happened, so there is nothing to invert
     assert "_undo_id" not in result
 
 
@@ -202,16 +263,16 @@ def test_vm_action_dry_run_makes_no_call_and_no_undo(
         ("snapshot_revert", {"snapshot_id": "snap-1"}),
     ],
 )
-def test_snapshot_dry_run_makes_no_call_and_no_undo(
-    snap_conn, undo_recorder, tool_name, kwargs
+def test_snapshot_dry_run_is_audited_and_never_writes(
+    gov_home, snap_conn, undo_recorder, tool_name, kwargs
 ):
     from mcp_server.tools import snapshots as gov
 
     result = getattr(gov, tool_name)(dry_run=True, **kwargs)
     assert result["dryRun"] is True
-    snap_conn.post.assert_not_called()
-    snap_conn.delete.assert_not_called()
-    assert undo_recorder == []
+    _assert_never_wrote(snap_conn)
+    assert _audit_tools(gov_home / "audit.db") == [tool_name], "previews are audited"
+    assert undo_recorder == []  # nothing happened, so there is nothing to invert
 
 
 @pytest.mark.unit
@@ -223,7 +284,7 @@ def test_sr_rescan_dry_run_and_execute(monkeypatch, undo_recorder):
 
     preview = gov_srs.sr_rescan(sr_id="sr-1", dry_run=True)
     assert preview["dryRun"] is True
-    conn.post.assert_not_called()
+    _assert_never_wrote(conn)
 
     result = gov_srs.sr_rescan(sr_id="sr-1")
     conn.post.assert_called_once_with("/srs/sr-1/actions/rescan", params={"sync": "true"})
