@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from xcpng_aiops.connection import _seg
+from xcpng_aiops.connection import XoApiError, _seg
 from xcpng_aiops.governance import opt_str
 from xcpng_aiops.ops._util import s
 
@@ -96,5 +96,23 @@ def revert_snapshot(conn: Any, snapshot_id: str) -> dict:
     state and the parent VM for the audit record; declares no undo.
     """
     prior = _snapshot_record(conn, snapshot_id)
-    conn.post(f"/vm-snapshots/{_seg(snapshot_id)}/actions/revert", params=_SYNC)
-    return {"id": s(snapshot_id, 64), "action": "snapshot_revert", "priorState": prior}
+    # XO exposes revert on the PARENT VM as `revert_snapshot`, taking the
+    # snapshot id in the body — there is no action on the snapshot itself.
+    # `/vm-snapshots/<id>/actions/revert` returns 404 on a real XO and is absent
+    # from its OpenAPI spec (verified against XCP-ng 8.3 + XO, 2026-08-01), so
+    # this write could never have succeeded.
+    vm_id = prior.get("vm")
+    if not vm_id:
+        raise XoApiError(
+            f"Cannot revert snapshot '{snapshot_id}': its parent VM could not be "
+            f"resolved (the snapshot record has no '$snapshot_of'). Revert is a "
+            f"VM-level action in XO, so the parent VM id is required. Check the "
+            f"snapshot id with 'snapshot list'."
+        )
+    conn.post(
+        f"/vms/{_seg(vm_id)}/actions/revert_snapshot",
+        params=_SYNC,
+        json={"snapshotId": snapshot_id},
+    )
+    return {"id": s(snapshot_id, 64), "action": "snapshot_revert",
+            "vm": s(vm_id, 64), "priorState": prior}

@@ -287,7 +287,9 @@ def test_sr_rescan_dry_run_and_execute(monkeypatch, undo_recorder):
     _assert_never_wrote(conn)
 
     result = gov_srs.sr_rescan(sr_id="sr-1")
-    conn.post.assert_called_once_with("/srs/sr-1/actions/rescan", params={"sync": "true"})
+    # XO names this action `scan`; `rescan` 404s on a real XO (verified against
+    # XCP-ng 8.3 + XO's OpenAPI spec, 2026-08-01).
+    conn.post.assert_called_once_with("/srs/sr-1/actions/scan", params={"sync": "true"})
     assert result["action"] == "sr_rescan"
     assert undo_recorder == []  # low-risk metadata refresh — no undo by design
 
@@ -363,8 +365,13 @@ def test_snapshot_revert_captures_before_state_no_undo(snap_conn, undo_recorder)
     from mcp_server.tools import snapshots as gov
 
     result = gov.snapshot_revert(snapshot_id="snap-1")
+    # XO exposes revert on the PARENT VM as `revert_snapshot`, with the
+    # snapshot id in the body — `/vm-snapshots/<id>/actions/revert` 404s on a
+    # real XO (verified against XCP-ng 8.3, 2026-08-01).
     snap_conn.post.assert_called_once_with(
-        "/vm-snapshots/snap-1/actions/revert", params={"sync": "true"}
+        "/vms/vm-1/actions/revert_snapshot",
+        params={"sync": "true"},
+        json={"snapshotId": "snap-1"},
     )
     assert result["priorState"]["name"] == "pre-change"
     assert "_undo_id" not in result

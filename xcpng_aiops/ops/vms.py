@@ -35,6 +35,19 @@ def _tools_ok(vm: dict) -> bool | None:
     return bool(agent or drivers)
 
 
+def _resident_host(vm: dict) -> str | None:
+    """The host the VM is resident on, or None when it is not on one.
+
+    XO overloads `$container`: it is the host id for a running VM and the POOL
+    id for a halted one. Return None in the latter case so "no host" is stated
+    rather than disguised as a host id that does not resolve.
+    """
+    container = vm.get("$container")
+    if not container or container == vm.get("$pool"):
+        return None
+    return opt_str(container, 64)
+
+
 def vm_summary(vm: dict) -> dict:
     """Reduce a VM record to a high-signal summary."""
     memory = vm.get("memory") or {}
@@ -44,7 +57,13 @@ def vm_summary(vm: dict) -> dict:
         "name": opt_str(vm.get("name_label"), 128),
         "powerState": opt_str(vm.get("power_state"), 32),
         "pool": opt_str(vm.get("$pool"), 64),
-        "host": opt_str(vm.get("$container"), 64),
+        # XO's `$container` is the resident HOST only while the VM is running;
+        # for a halted VM it is the POOL id. Mapping it straight to "host"
+        # reported a uuid that is not a host at all (verified against real
+        # XCP-ng 8.3 + XO, 2026-08-01) — a consumer would look it up as a host
+        # and find nothing, or wrongly believe a halted VM is placed. A VM with
+        # no resident host must say so with null, not with a pool id.
+        "host": _resident_host(vm),
         "vcpus": cpus.get("number") if isinstance(cpus, dict) else None,
         "memoryBytes": memory.get("size") if isinstance(memory, dict) else None,
         "guestToolsDetected": _tools_ok(vm),

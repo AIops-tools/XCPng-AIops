@@ -1,19 +1,105 @@
 # Live verification — xcpng-aiops
 
-`xcpng-aiops` is published and its behaviour is exercised by a **mock-only**
-test suite. It has **not** yet been validated end-to-end against a live Xen
-Orchestra instance. Until it has, we make no claim that the XO REST `/rest/v0`
-paths, action names, and field shapes match a real XO release.
+## ✅ Live-verified against real XCP-ng 8.3 + Xen Orchestra (2026-08-01)
 
-This is the sharpest open question for this tool: the endpoint paths
-(`/vms/<id>/actions/snapshot`, `/vm-snapshots/<id>`, `/srs/<id>/actions/rescan`,
-`/hosts/<id>/missing_patches`, `/backup/logs`) are modelled against the
-documented API, and **action names are known to drift across XO releases**.
+Verified end-to-end against a **real XCP-ng 8.3.0 host** (nested-KVM lab)
+managed by a real Xen Orchestra (`/rest/v0`, personal token) — reads
+cross-checked against `xe` on the host, and the full write → audit → undo loop
+closed on real objects. **Four real bugs, all fixed and regression-tested;
+three of them meant the affected call could never have worked against a real
+XO.**
 
-This document defines exactly what a live verification run must cover, and the
-criteria for recording this tool as live-verified. It is deliberately
-checklist-shaped so the result is reproducible and auditable — not a subjective
-"seems fine".
+### The action-path audit (the highest-suspicion code)
+
+Every REST path the tool constructs was probed against the live XO **and**
+reconciled with XO's own OpenAPI spec (`/rest/v0/docs/swagger.json`, 223 paths):
+
+| Tool path | Live result | Verdict |
+|---|---|---|
+| `POST /vms/{id}/actions/snapshot` | 201 | ✅ correct |
+| `POST /vms/{id}/actions/start` / `hard_shutdown` | 204 | ✅ correct |
+| `POST /vms/{id}/actions/clean_shutdown` / `clean_reboot` / `hard_reboot` | 500 on VM state | ✅ route exists |
+| `POST /vms/{id}/actions/migrate` | 422 schema | ✅ route exists |
+| `DELETE /vm-snapshots/{id}` | 200 | ✅ correct |
+| `GET /hosts/{id}/missing_patches` | 200 | ✅ correct |
+| **`POST /srs/{id}/actions/rescan`** | **404** | 🔴 **does not exist** → `scan` |
+| **`POST /vm-snapshots/{id}/actions/revert`** | **404** | 🔴 **does not exist** → VM-level `revert_snapshot` |
+
+### Bugs found and fixed
+
+1. **🔴 Two auth methods sent at once broke EVERY call.** The client sent both
+   `Authorization: Bearer <token>` and `Cookie: authenticationToken=<token>`
+   ("so one client works across XO versions"). Current XO rejects that with
+   `400 "Having multiple authentication methods is not supported, please choose
+   one"`. Verified live: cookie alone → 200, Bearer alone → 401, both → 400.
+   Fixed to send the **cookie only**.
+2. **🔴 `sr rescan` could never succeed** — XO names the action **`scan`**;
+   `rescan` 404s and is absent from the spec. Fixed; live-verified (204).
+3. **🔴 `snapshot revert` could never succeed** — revert is a **VM-level**
+   action, `POST /vms/{vm}/actions/revert_snapshot` with `{"snapshotId": ...}`
+   in the body. The tool posted to `/vm-snapshots/{id}/actions/revert` (404).
+   Fixed (resolving the parent VM from the snapshot's `$snapshot_of`, and
+   failing loudly rather than guessing when it is absent); live-verified (204).
+4. **A halted VM reported a `host` that is not a host.** XO overloads
+   `$container`: the resident host while running, the **pool id** when halted.
+   The tool mapped it straight to `host`, so a halted VM advertised a uuid that
+   resolves to no host. Now `null` when the VM is not resident on a host.
+
+### Live loop that passed after the fixes
+
+`doctor` (1 pool managed) · `overview` (1 pool / 1 host 8.3.0 / 1 VM Halted /
+4 SRs — matching `xe`) · `vm|host|sr|pool list` · `snapshot create` → real
+snapshot confirmed by `xe snapshot-list` → `undo apply` → **snapshot gone from
+the host** (`effectVerified: true`) · `sr rescan` (204) · `snapshot revert`
+(204) · `host missing-patches` (real patch list). Every governed write landed an
+audit row, including an honest `sr_rescan | error` for the pre-fix 404.
+
+> **Lab recipe:** XCP-ng 8.3 installs unattended under nested KVM via a remastered
+> ISO (answerfile on the dom0 kernel cmdline). Three traps: the installer needs a
+> **≥46 GB** primary disk; you must **preserve the ISO volume label** (the
+> installer locates its package repo by label, so `-V` renaming makes it fail with
+> an empty disk); and drop `console=tty0` so the installer's TUI/errors reach the
+> serial log. XO must run with `--network host` — a Docker-bridge container cannot
+> reach libvirt's NAT network.
+
+---
+
+## Earlier partial run — connection/auth/reads only (superseded by the above)
+
+Verified the **connection + auth + read layer** against a real Xen Orchestra
+(`/rest/v0`, `ronivay/xen-orchestra`, personal token):
+
+- **🔴 The client sent TWO auth methods at once** — both
+  `Authorization: Bearer <token>` and `Cookie: authenticationToken=<token>`
+  ("so one client works across XO versions"). Current XO **rejects that** with
+  `400 "Having multiple authentication methods is not supported, please choose
+  one"`, so doctor and every read failed. Verified against the live REST:
+  `Cookie` alone → 200, `Bearer` alone → 401, both → 400. Fixed to send the
+  **cookie only** (portable across all XO 5.x); regression-tested.
+- After the fix: `doctor` connects (token auth over the real `/rest/v0`);
+  `overview`, `vm list`, `sr list`, `host/pool list`, `backup jobs`, `task list`
+  all return correctly and handle an **empty** XO gracefully — proper truncation
+  envelopes (`{items, returned, limit, truncated}`), no crash-on-empty.
+
+**This gap is now CLOSED** — see the full run above, which stood up a nested
+XCP-ng 8.3 host, connected it in XO, and exercised every action path against real
+objects.
+
+---
+
+Remaining gaps: **backup jobs/logs against real backup runs** (no backup
+repository was configured), **multi-host pool** behaviour (HA, migration between
+hosts), and **RCA on a loaded cluster** (the lab host was idle, so the vm-health /
+sr-usage analyses had no real fault to find).
+
+The action names have now been reconciled against a live XO and its OpenAPI spec
+(see the table above) — **two of them were wrong**, which is exactly the drift
+this section used to warn about. Re-run that reconciliation against any new XO
+major release before assuming the paths still hold.
+
+The checklist below defines what a live verification run must cover. It is
+deliberately checklist-shaped so the result is reproducible and auditable — not a
+subjective "seems fine".
 
 ## What the mock suite already guarantees
 
@@ -39,7 +125,10 @@ checklist-shaped so the result is reproducible and auditable — not a subjectiv
   BEFORE the POST, so the inverse is recorded even when the response is lost.
 
 What it does **not** guarantee: that those REST paths, XO action names, RRD
-stat shapes and backup-log field names exist as modelled on any real XO build.
+stat shapes and backup-log field names exist as modelled on any real XO build —
+the mock suite passed 100% while two action paths 404'd on every real XO. The
+VM/SR/host/snapshot paths are now live-confirmed (see the table above); **RRD
+stat shapes and backup-log fields remain unconfirmed**.
 
 It also does **not** guarantee that stopping the Xen Orchestra VM is prevented.
 The guard is exact but opt-in: with no `xo_self_vm_uuid` declared on the target,

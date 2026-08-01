@@ -214,6 +214,12 @@ def sr_usage_rca(conn: Any) -> dict:
 
 
 def rescan_sr(conn: Any, sr_id: str) -> dict:
-    """[WRITE] Rescan an SR (low risk — metadata refresh, no undo needed)."""
-    conn.post(f"/srs/{_seg(sr_id)}/actions/rescan", params={"sync": "true"})
+    """[WRITE] Rescan an SR (low risk — metadata refresh, no undo needed).
+
+    XO names this action ``scan``, NOT ``rescan``: verified against a live XO
+    REST API (XCP-ng 8.3, 2026-08-01) where ``.../actions/rescan`` returns 404
+    ("Cannot POST") while ``.../actions/scan`` returns 202. The old path meant
+    this write could never succeed against a real Xen Orchestra.
+    """
+    conn.post(f"/srs/{_seg(sr_id)}/actions/scan", params={"sync": "true"})
     return {"id": s(sr_id, 64), "action": "sr_rescan"}

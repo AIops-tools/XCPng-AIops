@@ -98,8 +98,13 @@ class XoConnection:
                 verify=target.verify_ssl,
                 timeout=_TIMEOUT,
                 headers={
-                    # Bearer works on newer XO; the cookie works on all XO 5.x.
-                    "Authorization": f"Bearer {token}",
+                    # Send ONE auth method only: current XO rejects a request
+                    # carrying two with 400 "Having multiple authentication
+                    # methods is not supported, please choose one" — so sending
+                    # both Bearer and the cookie broke every call. The cookie
+                    # works across all XO 5.x (verified against a live XO REST
+                    # /rest/v0, 2026-08-01); a Bearer token is only accepted at
+                    # some newer endpoints, so the cookie is the portable choice.
                     "Cookie": f"authenticationToken={token}",
                     "Accept": "application/json",
                     "Content-Type": "application/json",

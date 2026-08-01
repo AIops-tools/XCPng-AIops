@@ -47,7 +47,15 @@ def snap_conn(monkeypatch):
     import mcp_server.tools.snapshots as gov_snapshots
 
     conn = MagicMock(name="conn")
-    conn.get.return_value = {}
+    # Model the REAL XO snapshot record: it always carries `$snapshot_of` (the
+    # parent VM). Revert is a VM-level action, so without this the fixture would
+    # not exercise the real path (bug class #1 — fixtures must match the driver).
+    conn.get.return_value = {
+        "uuid": "snap-1",
+        "name_label": "pre-change",
+        "snapshot_time": 1700000000,
+        "$snapshot_of": "vm-1",
+    }
     conn.delete.return_value = True
     monkeypatch.setattr(gov_snapshots, "_get_connection", lambda target=None: conn)
     return conn
@@ -170,7 +178,9 @@ def test_cli_snapshot_revert_confirmed_goes_through_governance(gov_home, snap_co
     result = CliRunner().invoke(app, ["snapshot", "revert", "snap-1"], input="y\ny\n")
     assert result.exit_code == 0, result.output
     snap_conn.post.assert_called_once_with(
-        "/vm-snapshots/snap-1/actions/revert", params={"sync": "true"}
+        "/vms/vm-1/actions/revert_snapshot",
+        params={"sync": "true"},
+        json={"snapshotId": "snap-1"},
     )
     assert _audit_tools(gov_home / "audit.db") == ["snapshot_revert"]
 

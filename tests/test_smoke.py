@@ -281,8 +281,11 @@ def test_connection_token_headers_and_error_translation():
 
 @pytest.mark.unit
 def test_real_connection_builds_token_headers(monkeypatch):
-    """Constructing XoConnection without an injected client derives both auth
-    headers from the target's token."""
+    """Constructing XoConnection derives the cookie auth header from the token —
+    and sends ONLY that. Regression (live-found on real XO REST, 2026-08-01):
+    current XO rejects a request carrying two auth methods with 400 "Having
+    multiple authentication methods is not supported"; sending both Bearer and
+    the cookie broke every call. The cookie is the portable single choice."""
     from xcpng_aiops.config import TargetConfig
     from xcpng_aiops.connection import XoConnection
 
@@ -290,8 +293,8 @@ def test_real_connection_builds_token_headers(monkeypatch):
     target = TargetConfig(name="xo1", url="https://xo.example.com", verify_ssl=False)
     conn = XoConnection(target)
     try:
-        assert conn._client.headers["authorization"] == "Bearer tok-abc"
         assert conn._client.headers["cookie"] == "authenticationToken=tok-abc"
+        assert "authorization" not in conn._client.headers, "must not also send Bearer"
         # httpx normalizes base_url with a trailing slash.
         assert str(conn._client.base_url).rstrip("/") == "https://xo.example.com/rest/v0"
     finally:

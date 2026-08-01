@@ -58,6 +58,34 @@ def test_ops_report_absent_fields_as_none():
 
 
 @pytest.mark.unit
+def test_halted_vm_reports_no_host_not_the_pool_id():
+    """Regression (live-found on real XCP-ng 8.3 + XO, 2026-08-01): XO's
+    `$container` is the resident HOST only while a VM runs; for a halted VM it
+    is the POOL id. Mapping it straight to "host" reported a uuid that is not a
+    host at all, so a consumer would look it up and find nothing."""
+    conn = MagicMock()
+    conn.get.return_value = [{
+        "uuid": "vm-1", "name_label": "halted-vm", "power_state": "Halted",
+        "$pool": "pool-1", "$container": "pool-1",   # halted → container IS the pool
+    }]
+    row = vm_ops.list_vms(conn)["vms"][0]
+    assert row["pool"] == "pool-1"
+    assert row["host"] is None, "a halted VM has no resident host"
+
+
+@pytest.mark.unit
+def test_running_vm_reports_its_resident_host():
+    """The counterpart: while running, `$container` IS the host and must show."""
+    conn = MagicMock()
+    conn.get.return_value = [{
+        "uuid": "vm-2", "name_label": "running-vm", "power_state": "Running",
+        "$pool": "pool-1", "$container": "host-9",
+    }]
+    row = vm_ops.list_vms(conn)["vms"][0]
+    assert row["host"] == "host-9"
+
+
+@pytest.mark.unit
 def test_ops_keep_empty_string_when_source_is_empty():
     """An explicitly empty upstream value is preserved as '' — not turned into null."""
     conn = MagicMock()
