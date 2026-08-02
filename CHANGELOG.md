@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — 2026-08-02
+
+### Changed (BREAKING)
+- **Requires MCP SDK 2.0** (`mcp[cli]>=2.0,<3.0`). `mcp.server.fastmcp` no longer exists in 2.0; the server is now built with `MCPServer` and reports its package version in the stdio handshake.
+
+### Fixed
+- **`undo apply` works from the CLI.** Every write tool is imported lazily inside its own CLI command, so a CLI-driven undo ran in a process where the inverse tool was never registered and failed with "inverse tool is not registered" — for every write tool. Only the MCP entry point, which imports the whole server, worked. Found while live-verifying against a real cluster.
+- **An undetermined outcome is audited `unknown`, not `ok`.** The harness only classified a result as undetermined when the payload *also* carried an `error` key, so a write that looked successful but had not been confirmed was recorded as a success.
+- **Every call failed against a real Xen Orchestra.** The client sent both `Authorization: Bearer` and the `authenticationToken` cookie; current XO rejects a request carrying two auth methods with `400 Having multiple authentication methods is not supported`. Only the cookie is sent now (Bearer alone is 401, both are 400). Live-verified against XCP-ng 8.3 + XO.
+- **`sr rescan` 404'd**: XO names the action `scan`. Confirmed against XO's own OpenAPI spec.
+- **Snapshot revert 404'd**: revert is a VM-level action, `POST /vms/{vm}/actions/revert_snapshot` with the snapshot id in the body — `/vm-snapshots/{id}/actions/revert` does not exist.
+- A halted VM reported a `host` that is not a host. XO overloads `$container` as the resident host while running and the **pool** id when halted; `host` is now null when the VM is not resident on one.
+
+
 ## v0.4.0 — 2026-07-21
 
 ### Changed (BREAKING)
