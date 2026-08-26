@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "xcpng-aiops": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "xcpng-aiops==0.7.0",
+        "xcpng-aiops-mcp"
+      ]
+    }
+  }
+}
