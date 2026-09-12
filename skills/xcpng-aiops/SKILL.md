@@ -61,6 +61,13 @@ xcpng-aiops init       # interactive wizard: XO URL + encrypted token
 xcpng-aiops doctor     # XO reachability + token validity + pool count
 ```
 
+Or as an OpenClaw plugin, which installs this skill and its MCP server together:
+
+```bash
+openclaw plugins install clawhub:@aiops-tools/xcpng-aiops
+openclaw skills info xcpng-aiops          # expect: Visible to model: yes
+```
+
 ## When to Use This Skill
 
 - Triage an XCP-ng fleet (`overview`): pools, hosts, VMs by state, SRs near full, recent backup failures
