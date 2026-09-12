@@ -68,6 +68,8 @@ openclaw plugins install clawhub:@aiops-tools/xcpng-aiops
 openclaw skills info xcpng-aiops          # expect: Visible to model: yes
 ```
 
+Needs `uvx` on `PATH`: the MCP server is fetched with uv, pinned to this release.
+
 ## When to Use This Skill
 
 - Triage an XCP-ng fleet (`overview`): pools, hosts, VMs by state, SRs near full, recent backup failures
