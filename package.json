@@ -1,7 +1,7 @@
 {
   "name": "@aiops-tools/xcpng-aiops",
-  "version": "0.8.0",
-  "description": "Governed XCP-ng ops via Xen Orchestra — 29 MCP tools with audit, budget, undo guards.",
+  "version": "0.8.2",
+  "description": "Governed XCP-ng ops via Xen Orchestra \u2014 29 MCP tools with audit, budget, undo guards.",
   "private": true,
   "license": "MIT",
   "homepage": "https://github.com/AIops-tools/XCPng-AIops",
