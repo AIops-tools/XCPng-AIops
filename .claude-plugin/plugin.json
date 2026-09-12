@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "xcpng-aiops",
   "displayName": "XCP-ng AIops",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Governed XCP-ng ops via Xen Orchestra — 29 MCP tools with audit, budget, undo guards.",
   "author": {
     "name": "Wei Zhou",

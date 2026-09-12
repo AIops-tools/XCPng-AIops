@@ -17,7 +17,7 @@ installer:
 argument-hint: "[vm/sr/snapshot uuid or describe your XCP-ng task]"
 allowed-tools:
   - Bash
-metadata: {"openclaw":{"requires":{"env":["XCPNG_AIOPS_CONFIG"],"bins":["xcpng-aiops"],"config":["~/.xcpng-aiops/config.yaml","~/.xcpng-aiops/secrets.enc"]},"optional":{"env":["XCPNG_AIOPS_MASTER_PASSWORD"]},"primaryEnv":"XCPNG_AIOPS_CONFIG","homepage":"https://github.com/AIops-tools/XCPng-AIops","emoji":"🖥️","os":["macos","linux"]}}
+metadata: {"openclaw":{"requires":{"anyBins":["xcpng-aiops","uvx"]},"optional":{"env":["XCPNG_AIOPS_CONFIG","XCPNG_AIOPS_MASTER_PASSWORD"]},"homepage":"https://github.com/AIops-tools/XCPng-AIops","emoji":"🖥️","os":["macos","linux"]}}
 compatibility: >
   Standalone, self-governed XCP-ng operations via Xen Orchestra's REST API /rest/v0. REQUIRES a Xen Orchestra instance (XO from sources or the Xen Orchestra Appliance, 5.x) — XO is the management plane; direct per-host XAPI access is out of scope for v0.1. The governance harness (audit, policy, token/runaway budget, undo, risk-tiers) is bundled in the package — no external skill-family dependency.
   All write operations are audited to a local SQLite DB under ~/.xcpng-aiops/ (relocatable via XCPNG_AIOPS_HOME).
