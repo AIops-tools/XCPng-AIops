@@ -5,7 +5,7 @@
       "command": "uvx",
       "args": [
         "--from",
-        "xcpng-aiops==0.8.0",
+        "xcpng-aiops==0.8.1",
         "xcpng-aiops-mcp"
       ]
     }
