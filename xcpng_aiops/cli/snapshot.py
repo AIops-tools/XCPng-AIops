@@ -11,6 +11,7 @@ from mcp_server.tools import snapshots as gov
 from xcpng_aiops.cli._common import (
     DryRunOption,
     TargetOption,
+    audited,
     cli_errors,
     console,
     double_confirm,
@@ -33,6 +34,7 @@ LimitOption = Annotated[
 
 @snapshot_app.command("list")
 @cli_errors
+@audited
 def snapshot_list(
     vm: VmOption = None,
     limit: LimitOption = DEFAULT_LIST_LIMIT,

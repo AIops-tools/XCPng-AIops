@@ -11,6 +11,7 @@ from mcp_server.tools import srs as gov
 from xcpng_aiops.cli._common import (
     DryRunOption,
     TargetOption,
+    audited,
     cli_errors,
     console,
     dry_run_print,
@@ -37,6 +38,7 @@ OrphanedOption = Annotated[
 
 @sr_app.command("list")
 @cli_errors
+@audited
 def sr_list(
     pool: PoolOption = None,
     limit: LimitOption = DEFAULT_LIST_LIMIT,
@@ -51,6 +53,7 @@ def sr_list(
 
 @sr_app.command("get")
 @cli_errors
+@audited
 def sr_get(sr_id: str, target: TargetOption = None) -> None:
     """Detail for one SR by uuid."""
     conn, _ = get_connection(target)
@@ -59,6 +62,7 @@ def sr_get(sr_id: str, target: TargetOption = None) -> None:
 
 @sr_app.command("vdis")
 @cli_errors
+@audited
 def sr_vdis(
     sr: SrOption = None,
     orphaned_only: OrphanedOption = False,
@@ -74,6 +78,7 @@ def sr_vdis(
 
 @sr_app.command("usage-rca")
 @cli_errors
+@audited
 def sr_usage_rca(target: TargetOption = None) -> None:
     """RCA: SRs near full ranked, thin-provision overcommit, orphaned VDIs."""
     conn, _ = get_connection(target)

@@ -9,6 +9,7 @@ import typer
 
 from xcpng_aiops.cli._common import (
     TargetOption,
+    audited,
     cli_errors,
     console,
     get_connection,
@@ -26,6 +27,7 @@ LimitOption = Annotated[
 
 @backup_app.command("jobs")
 @cli_errors
+@audited
 def backup_jobs(
     limit: LimitOption = DEFAULT_LIST_LIMIT, target: TargetOption = None
 ) -> None:
@@ -38,6 +40,7 @@ def backup_jobs(
 
 @backup_app.command("logs")
 @cli_errors
+@audited
 def backup_logs(limit: LimitOption = 50, target: TargetOption = None) -> None:
     """Recent backup run logs: status + failed-task messages."""
     conn, _ = get_connection(target)
@@ -48,6 +51,7 @@ def backup_logs(limit: LimitOption = 50, target: TargetOption = None) -> None:
 
 @backup_app.command("failure-rca")
 @cli_errors
+@audited
 def backup_failure_rca(limit: LimitOption = 50, target: TargetOption = None) -> None:
     """RCA: failed/skipped runs classified (vdi-chain, quiesce, transport, ...)."""
     conn, _ = get_connection(target)

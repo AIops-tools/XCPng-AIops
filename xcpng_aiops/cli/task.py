@@ -9,6 +9,7 @@ import typer
 
 from xcpng_aiops.cli._common import (
     TargetOption,
+    audited,
     cli_errors,
     console,
     get_connection,
@@ -30,6 +31,7 @@ LimitOption = Annotated[
 
 @task_app.command("list")
 @cli_errors
+@audited
 def task_list(
     status: StatusOption = None,
     limit: LimitOption = DEFAULT_LIST_LIMIT,

@@ -11,6 +11,7 @@ from mcp_server.tools import vm_actions as gov
 from xcpng_aiops.cli._common import (
     DryRunOption,
     TargetOption,
+    audited,
     cli_errors,
     console,
     double_confirm,
@@ -38,6 +39,7 @@ ForceOption = Annotated[
 
 @vm_app.command("list")
 @cli_errors
+@audited
 def vm_list(
     state: PowerStateOption = None,
     pool: PoolOption = None,
@@ -53,6 +55,7 @@ def vm_list(
 
 @vm_app.command("get")
 @cli_errors
+@audited
 def vm_get(vm_id: str, target: TargetOption = None) -> None:
     """Detail for one VM by uuid."""
     conn, _ = get_connection(target)
@@ -61,6 +64,7 @@ def vm_get(vm_id: str, target: TargetOption = None) -> None:
 
 @vm_app.command("stats")
 @cli_errors
+@audited
 def vm_stats(
     vm_id: str,
     granularity: Annotated[
@@ -75,6 +79,7 @@ def vm_stats(
 
 @vm_app.command("health-rca")
 @cli_errors
+@audited
 def vm_health_rca(
     vm_id: Annotated[str | None, typer.Argument(help="VM uuid (omit for whole fleet)")] = None,
     target: TargetOption = None,
