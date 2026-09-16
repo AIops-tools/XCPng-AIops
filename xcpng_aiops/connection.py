@@ -26,7 +26,6 @@ The httpx client is injectable for tests: pass ``client=`` to
 from __future__ import annotations
 
 import atexit
-import weakref
 from typing import Any
 from urllib.parse import quote
 
@@ -197,10 +196,13 @@ class ConnectionManager:
         return list(self._connections.keys())
 
 
-# Managers hold cached httpx clients; close them all at interpreter exit so
-# sockets are released deterministically (a WeakSet so short-lived CLI managers
-# can still be garbage-collected normally).
-_MANAGERS: weakref.WeakSet[ConnectionManager] = weakref.WeakSet()
+# Every live ConnectionManager registers here so the atexit hook can close any
+# cached httpx clients when the interpreter shuts down. The reference is strong
+# on purpose: the CLI builds a manager, returns only the connection and drops the
+# manager (cli/_common.get_connection), so a weak registry would collect it and
+# leave the hook nothing to close. Today that only skips a local socket close —
+# but it is the same silence that hides a missing server-side teardown.
+_MANAGERS: set[ConnectionManager] = set()
 
 
 def _close_all_managers() -> None:
