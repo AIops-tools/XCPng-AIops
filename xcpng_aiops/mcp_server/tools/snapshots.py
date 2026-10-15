@@ -8,8 +8,8 @@ response. ``snapshot_delete`` and ``snapshot_revert`` are irreversible
 
 from typing import Any, Optional
 
-from mcp_server._shared import _get_connection, mcp, tool_errors
 from xcpng_aiops.governance import governed_tool
+from xcpng_aiops.mcp_server._shared import _get_connection, mcp, tool_errors
 from xcpng_aiops.ops import snapshots as ops
 from xcpng_aiops.ops import vms as vm_ops
 from xcpng_aiops.ops._util import DEFAULT_LIST_LIMIT

@@ -7,7 +7,6 @@ from typing import Annotated
 
 import typer
 
-from mcp_server.tools import vm_actions as gov
 from xcpng_aiops.cli._common import (
     DryRunOption,
     TargetOption,
@@ -20,6 +19,7 @@ from xcpng_aiops.cli._common import (
     governed,
     print_truncation_note,
 )
+from xcpng_aiops.mcp_server.tools import vm_actions as gov
 from xcpng_aiops.ops import vm_rca, vms
 from xcpng_aiops.ops._util import DEFAULT_LIST_LIMIT
 

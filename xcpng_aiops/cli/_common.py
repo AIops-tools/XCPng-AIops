@@ -64,7 +64,7 @@ EXIT_UNDETERMINED = 2
 def governed(result: Any) -> dict:
     """Return a governed tool's result, or print its error and exit 1.
 
-    The ``mcp_server.tools`` twins never raise: ``@tool_errors`` flattens every
+    The ``xcpng_aiops.mcp_server.tools`` twins never raise: ``@tool_errors`` flattens every
     failure — a refused self-target, a policy denial, an unreachable XO — into
     ``{"error": ...}``. A CLI command that drops that on the floor goes on to
     print its success line for an operation that did not happen, which is the

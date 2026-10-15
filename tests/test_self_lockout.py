@@ -24,8 +24,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from mcp_server.tools.vm_actions import _migrate_undo
 from xcpng_aiops.governance.outcome import take_prior_state
+from xcpng_aiops.mcp_server.tools.vm_actions import _migrate_undo
 from xcpng_aiops.ops.vm_actions import SelfLockout, migrate_vm, self_vm_hint, stop_vm
 
 XO_VM = "11111111-2222-3333-4444-555555555555"
@@ -166,7 +166,7 @@ def test_no_hint_when_the_read_fails():
 @pytest.mark.unit
 def test_the_mcp_tool_refuses_and_records_no_undo(monkeypatch, tmp_path):
     """A guard that only covers the ops layer is a guard an agent can walk past."""
-    import mcp_server.tools.vm_actions as gov_vm
+    import xcpng_aiops.mcp_server.tools.vm_actions as gov_vm
 
     monkeypatch.setenv("XCPNG_AIOPS_HOME", str(tmp_path))
     conn = _conn(self_uuid=XO_VM)
@@ -180,8 +180,8 @@ def test_the_mcp_tool_refuses_and_records_no_undo(monkeypatch, tmp_path):
 def test_the_cli_refuses_too(monkeypatch, tmp_path):
     from typer.testing import CliRunner
 
-    import mcp_server.tools.vm_actions as gov_vm
     import xcpng_aiops.cli.vm as cli_vm
+    import xcpng_aiops.mcp_server.tools.vm_actions as gov_vm
     from xcpng_aiops.cli import app
 
     monkeypatch.setenv("XCPNG_AIOPS_HOME", str(tmp_path))
@@ -201,7 +201,7 @@ def test_the_cli_refuses_too(monkeypatch, tmp_path):
 def test_the_mcp_dry_run_on_the_self_target_is_refused(monkeypatch, tmp_path):
     """A dry-run reports what would happen. If the answer is "refused", say so —
     a green preview followed by a refusal reads to a model as a retryable blip."""
-    import mcp_server.tools.vm_actions as gov_vm
+    import xcpng_aiops.mcp_server.tools.vm_actions as gov_vm
 
     monkeypatch.setenv("XCPNG_AIOPS_HOME", str(tmp_path))
     conn = _conn(self_uuid=XO_VM)
@@ -215,7 +215,7 @@ def test_the_mcp_dry_run_on_the_self_target_is_refused(monkeypatch, tmp_path):
 @pytest.mark.unit
 def test_the_mcp_dry_run_on_any_other_vm_still_previews(monkeypatch, tmp_path):
     """The dry-run must never refuse something the real call would allow."""
-    import mcp_server.tools.vm_actions as gov_vm
+    import xcpng_aiops.mcp_server.tools.vm_actions as gov_vm
 
     monkeypatch.setenv("XCPNG_AIOPS_HOME", str(tmp_path))
     conn = _conn(self_uuid=XO_VM)
@@ -229,7 +229,7 @@ def test_the_mcp_dry_run_on_any_other_vm_still_previews(monkeypatch, tmp_path):
 @pytest.mark.unit
 def test_the_dry_run_fails_open_on_an_undeclared_target(monkeypatch, tmp_path):
     """Fail-open semantics must be identical on both paths."""
-    import mcp_server.tools.vm_actions as gov_vm
+    import xcpng_aiops.mcp_server.tools.vm_actions as gov_vm
 
     monkeypatch.setenv("XCPNG_AIOPS_HOME", str(tmp_path))
     conn = _conn(self_uuid=None)
@@ -240,7 +240,7 @@ def test_the_dry_run_fails_open_on_an_undeclared_target(monkeypatch, tmp_path):
 @pytest.mark.unit
 def test_the_ip_hint_never_blocks_the_dry_run_either(monkeypatch, tmp_path):
     """Tier 2 stays advisory on BOTH paths — it is a coincidence, not a finding."""
-    import mcp_server.tools.vm_actions as gov_vm
+    import xcpng_aiops.mcp_server.tools.vm_actions as gov_vm
 
     monkeypatch.setenv("XCPNG_AIOPS_HOME", str(tmp_path))
     conn = _conn(self_uuid=None, url="https://10.0.0.5", vm_ip="10.0.0.5")
@@ -254,7 +254,7 @@ def test_the_ip_hint_never_blocks_the_dry_run_either(monkeypatch, tmp_path):
 def test_the_cli_dry_run_on_the_self_target_is_refused(monkeypatch, tmp_path):
     from typer.testing import CliRunner
 
-    import mcp_server.tools.vm_actions as gov_vm
+    import xcpng_aiops.mcp_server.tools.vm_actions as gov_vm
     from xcpng_aiops.cli import app
 
     monkeypatch.setenv("XCPNG_AIOPS_HOME", str(tmp_path))
@@ -271,7 +271,7 @@ def test_the_cli_dry_run_on_the_self_target_is_refused(monkeypatch, tmp_path):
 def test_the_cli_dry_run_surfaces_the_ip_hint(monkeypatch, tmp_path):
     from typer.testing import CliRunner
 
-    import mcp_server.tools.vm_actions as gov_vm
+    import xcpng_aiops.mcp_server.tools.vm_actions as gov_vm
     from xcpng_aiops.cli import app
 
     monkeypatch.setenv("XCPNG_AIOPS_HOME", str(tmp_path))

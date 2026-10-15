@@ -1,7 +1,7 @@
 """CLI confirmed-write path — past dry-run, through governance, onto disk.
 
 The CLI write commands delegate real execution to the ``@governed_tool``
-functions in ``mcp_server.tools``. These tests drive a write command PAST the
+functions in ``xcpng_aiops.mcp_server.tools``. These tests drive a write command PAST the
 dry-run branch and the double-confirm prompts and assert the call really went
 through the governed path (audit row on disk) — the regression test for the
 "CLI writes were unaudited" line-wide fix.
@@ -44,7 +44,7 @@ def _audit_tools(db_path) -> list[str]:
 @pytest.fixture
 def snap_conn(monkeypatch):
     """Route the governed snapshot tools to a mocked REST connection."""
-    import mcp_server.tools.snapshots as gov_snapshots
+    import xcpng_aiops.mcp_server.tools.snapshots as gov_snapshots
 
     conn = MagicMock(name="conn")
     # Model the REAL XO snapshot record: it always carries `$snapshot_of` (the
@@ -70,8 +70,8 @@ def vm_conn(monkeypatch):
     at the same double. The target declares no ``xo_self_vm_uuid``: the default
     is an undeclared target, where the guard must fail open.
     """
-    import mcp_server.tools.vm_actions as gov_vm
     import xcpng_aiops.cli.vm as cli_vm
+    import xcpng_aiops.mcp_server.tools.vm_actions as gov_vm
 
     conn = MagicMock(name="conn")
     conn.get.return_value = {"power_state": "Running", "$container": "host-1"}
@@ -112,7 +112,7 @@ def test_cli_dry_run_refusal_exits_nonzero_and_prints_no_success_banner(
     line designs against: a green preview followed by a refusal reads to a model
     as a transient blip, and it retries.
     """
-    import mcp_server.tools.snapshots as gov_snapshots
+    import xcpng_aiops.mcp_server.tools.snapshots as gov_snapshots
     from xcpng_aiops.cli import app
 
     monkeypatch.setattr(
@@ -135,7 +135,7 @@ def test_cli_dry_run_banner_is_rendered_from_the_twins_returned_preview(
     twin is stubbed to report a DIFFERENT id than the one on the command line;
     a hardcoded banner would echo the argument and miss it.
     """
-    import mcp_server.tools.snapshots as gov_snapshots
+    import xcpng_aiops.mcp_server.tools.snapshots as gov_snapshots
     from xcpng_aiops.cli import app
 
     monkeypatch.setattr(

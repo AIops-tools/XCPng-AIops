@@ -2,7 +2,7 @@
 
 Portable across the whole tool line: references ONLY
 ``xcpng_aiops.governance.patterns`` and binds state to an isolated home via
-``XCPNG_AIOPS_HOME``. No ops / cli / connection / mcp_server imports.
+``XCPNG_AIOPS_HOME``. No ops / cli / connection / xcpng_aiops.mcp_server imports.
 
 Exercises pattern loading + signature validation, the armable preconditions,
 skill/tool/target matching, rate limiting, the circuit breaker's state

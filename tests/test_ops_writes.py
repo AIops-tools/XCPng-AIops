@@ -63,7 +63,7 @@ def undo_recorder(monkeypatch):
 @pytest.fixture
 def vm_conn(monkeypatch):
     """Mocked connection routed under the governed vm_actions tools."""
-    import mcp_server.tools.vm_actions as gov_vm
+    import xcpng_aiops.mcp_server.tools.vm_actions as gov_vm
 
     conn = MagicMock(name="conn")
     conn.get.return_value = {"power_state": "Running", "$container": "host-src"}
@@ -75,7 +75,7 @@ def vm_conn(monkeypatch):
 @pytest.fixture
 def snap_conn(monkeypatch):
     """Mocked connection routed under the governed snapshot tools."""
-    import mcp_server.tools.snapshots as gov_snap
+    import xcpng_aiops.mcp_server.tools.snapshots as gov_snap
 
     conn = MagicMock(name="conn")
     conn.get.return_value = {
@@ -93,7 +93,7 @@ def snap_conn(monkeypatch):
 
 @pytest.mark.unit
 def test_vm_start_posts_action_and_records_stop_undo(vm_conn, undo_recorder):
-    from mcp_server.tools import vm_actions as gov
+    from xcpng_aiops.mcp_server.tools import vm_actions as gov
 
     result = gov.vm_start(vm_id="vm-1")
     vm_conn.post.assert_called_once_with("/vms/vm-1/actions/start", params={"sync": "true"})
@@ -105,7 +105,7 @@ def test_vm_start_posts_action_and_records_stop_undo(vm_conn, undo_recorder):
 
 @pytest.mark.unit
 def test_vm_stop_clean_vs_force_and_start_undo(vm_conn, undo_recorder):
-    from mcp_server.tools import vm_actions as gov
+    from xcpng_aiops.mcp_server.tools import vm_actions as gov
 
     result = gov.vm_stop(vm_id="vm-1")
     vm_conn.post.assert_called_once_with(
@@ -126,7 +126,7 @@ def test_vm_stop_clean_vs_force_and_start_undo(vm_conn, undo_recorder):
 def test_vm_stop_undo_replay_goes_through_vm_start(vm_conn, undo_recorder):
     """The recorded inverse must be REPLAYABLE: calling the named tool with the
     recorded params must execute cleanly against the governed twin."""
-    from mcp_server.tools import vm_actions as gov
+    from xcpng_aiops.mcp_server.tools import vm_actions as gov
 
     gov.vm_stop(vm_id="vm-1")
     descriptor = undo_recorder[-1]
@@ -141,7 +141,7 @@ def test_vm_stop_undo_replay_goes_through_vm_start(vm_conn, undo_recorder):
 @pytest.mark.unit
 def test_vm_stop_of_non_running_vm_records_no_undo(vm_conn, undo_recorder):
     """Starting back a VM that was NOT running is not an inverse — no undo."""
-    from mcp_server.tools import vm_actions as gov
+    from xcpng_aiops.mcp_server.tools import vm_actions as gov
 
     vm_conn.get.return_value = {"power_state": "Paused", "$container": "host-src"}
     result = gov.vm_stop(vm_id="vm-1")
@@ -151,7 +151,7 @@ def test_vm_stop_of_non_running_vm_records_no_undo(vm_conn, undo_recorder):
 
 @pytest.mark.unit
 def test_vm_reboot_captures_prior_state_no_undo(vm_conn, undo_recorder):
-    from mcp_server.tools import vm_actions as gov
+    from xcpng_aiops.mcp_server.tools import vm_actions as gov
 
     result = gov.vm_reboot(vm_id="vm-1")
     vm_conn.post.assert_called_once_with(
@@ -166,7 +166,7 @@ def test_vm_reboot_captures_prior_state_no_undo(vm_conn, undo_recorder):
 def test_vm_migrate_captures_source_host_and_undo_replays_back(vm_conn, undo_recorder):
     """vm_migrate must capture the REAL source host before moving, and the
     recorded inverse (migrate back) must replay through vm_migrate itself."""
-    from mcp_server.tools import vm_actions as gov
+    from xcpng_aiops.mcp_server.tools import vm_actions as gov
 
     result = gov.vm_migrate(vm_id="vm-1", host_id="host-dst")
     assert result["sourceHost"] == "host-src"
@@ -190,7 +190,7 @@ def test_vm_migrate_captures_source_host_and_undo_replays_back(vm_conn, undo_rec
 @pytest.mark.unit
 def test_vm_migrate_without_captured_source_records_no_undo(vm_conn, undo_recorder):
     """No captured source host → an honest 'no safe inverse', not a guess."""
-    from mcp_server.tools import vm_actions as gov
+    from xcpng_aiops.mcp_server.tools import vm_actions as gov
 
     vm_conn.get.side_effect = RuntimeError("lookup boom")
     result = gov.vm_migrate(vm_id="vm-1", host_id="host-dst")
@@ -244,7 +244,7 @@ def test_the_mutating_verb_list_still_matches_the_transport():
 def test_vm_action_dry_run_is_audited_and_never_writes(
     gov_home, vm_conn, undo_recorder, tool_name, kwargs
 ):
-    from mcp_server.tools import vm_actions as gov
+    from xcpng_aiops.mcp_server.tools import vm_actions as gov
 
     result = getattr(gov, tool_name)(dry_run=True, **kwargs)
     assert result["dryRun"] is True
@@ -266,7 +266,7 @@ def test_vm_action_dry_run_is_audited_and_never_writes(
 def test_snapshot_dry_run_is_audited_and_never_writes(
     gov_home, snap_conn, undo_recorder, tool_name, kwargs
 ):
-    from mcp_server.tools import snapshots as gov
+    from xcpng_aiops.mcp_server.tools import snapshots as gov
 
     result = getattr(gov, tool_name)(dry_run=True, **kwargs)
     assert result["dryRun"] is True
@@ -277,7 +277,7 @@ def test_snapshot_dry_run_is_audited_and_never_writes(
 
 @pytest.mark.unit
 def test_sr_rescan_dry_run_and_execute(monkeypatch, undo_recorder):
-    import mcp_server.tools.srs as gov_srs
+    import xcpng_aiops.mcp_server.tools.srs as gov_srs
 
     conn = MagicMock(name="conn")
     monkeypatch.setattr(gov_srs, "_get_connection", lambda target=None: conn)
@@ -303,7 +303,7 @@ def test_snapshot_create_captures_real_id_and_undo_replays_delete(
 ):
     """The undo must target the snapshot id XO RETURNED (never a guess), and
     replaying it must drive snapshot_delete cleanly."""
-    from mcp_server.tools import snapshots as gov
+    from xcpng_aiops.mcp_server.tools import snapshots as gov
 
     result = gov.snapshot_create(vm_id="vm-1", name="pre-change")
     snap_conn.post.assert_called_once_with(
@@ -324,7 +324,7 @@ def test_snapshot_create_captures_real_id_and_undo_replays_delete(
 
 @pytest.mark.unit
 def test_snapshot_create_extracts_id_from_href_and_dict_responses(snap_conn):
-    from mcp_server.tools import snapshots as gov
+    from xcpng_aiops.mcp_server.tools import snapshots as gov
 
     snap_conn.post.return_value = "/rest/v0/vm-snapshots/snap-href"
     assert gov.snapshot_create(vm_id="vm-1", name="a")["id"] == "snap-href"
@@ -336,7 +336,7 @@ def test_snapshot_create_extracts_id_from_href_and_dict_responses(snap_conn):
 @pytest.mark.unit
 def test_snapshot_create_without_id_records_no_undo(snap_conn, undo_recorder):
     """If XO's response carries no id there is no replayable inverse — record none."""
-    from mcp_server.tools import snapshots as gov
+    from xcpng_aiops.mcp_server.tools import snapshots as gov
 
     snap_conn.post.return_value = {}
     result = gov.snapshot_create(vm_id="vm-1", name="x")
@@ -348,7 +348,7 @@ def test_snapshot_create_without_id_records_no_undo(snap_conn, undo_recorder):
 @pytest.mark.unit
 def test_snapshot_delete_captures_before_state(snap_conn, undo_recorder):
     """delete captures the snapshot's REAL prior state (name/time/VM); no undo."""
-    from mcp_server.tools import snapshots as gov
+    from xcpng_aiops.mcp_server.tools import snapshots as gov
 
     result = gov.snapshot_delete(snapshot_id="snap-1")
     snap_conn.get.assert_called_once_with("/vm-snapshots/snap-1")
@@ -362,7 +362,7 @@ def test_snapshot_delete_captures_before_state(snap_conn, undo_recorder):
 
 @pytest.mark.unit
 def test_snapshot_revert_captures_before_state_no_undo(snap_conn, undo_recorder):
-    from mcp_server.tools import snapshots as gov
+    from xcpng_aiops.mcp_server.tools import snapshots as gov
 
     result = gov.snapshot_revert(snapshot_id="snap-1")
     # XO exposes revert on the PARENT VM as `revert_snapshot`, with the

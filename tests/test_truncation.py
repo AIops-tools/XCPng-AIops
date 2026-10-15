@@ -185,7 +185,7 @@ def test_undo_list_envelope_measures_truncation(tmp_path, monkeypatch):
     policy_mod.reset_policy_engine()
     undo_mod.reset_undo_store()
     try:
-        from mcp_server.tools import undo as undo_tools
+        from xcpng_aiops.mcp_server.tools import undo as undo_tools
 
         store = undo_mod.get_undo_store()
         for i in range(4):

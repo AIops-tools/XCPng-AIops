@@ -68,7 +68,7 @@ Orchestra REST API endpoint. No post-install scripts or background services.
 ## Static Analysis
 
 ```bash
-uvx bandit -r xcpng_aiops/ mcp_server/
+uvx bandit -r xcpng_aiops/
 uv run ruff check .
 ```
 

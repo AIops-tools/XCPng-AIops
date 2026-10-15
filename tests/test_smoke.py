@@ -68,17 +68,17 @@ def test_all_modules_import():
         "xcpng_aiops.cli.task",
         "xcpng_aiops.cli.overview",
         "xcpng_aiops.cli.doctor",
-        "mcp_server.server",
-        "mcp_server._shared",
-        "mcp_server.tools.overview",
-        "mcp_server.tools.vms",
-        "mcp_server.tools.vm_actions",
-        "mcp_server.tools.hosts",
-        "mcp_server.tools.pools",
-        "mcp_server.tools.srs",
-        "mcp_server.tools.snapshots",
-        "mcp_server.tools.backups",
-        "mcp_server.tools.tasks",
+        "xcpng_aiops.mcp_server.server",
+        "xcpng_aiops.mcp_server._shared",
+        "xcpng_aiops.mcp_server.tools.overview",
+        "xcpng_aiops.mcp_server.tools.vms",
+        "xcpng_aiops.mcp_server.tools.vm_actions",
+        "xcpng_aiops.mcp_server.tools.hosts",
+        "xcpng_aiops.mcp_server.tools.pools",
+        "xcpng_aiops.mcp_server.tools.srs",
+        "xcpng_aiops.mcp_server.tools.snapshots",
+        "xcpng_aiops.mcp_server.tools.backups",
+        "xcpng_aiops.mcp_server.tools.tasks",
     ):
         importlib.import_module(name)
 
@@ -150,7 +150,7 @@ def test_cli_leaf_help_triggers_lazy_imports():
 
 @pytest.mark.unit
 def test_mcp_list_tools_exposes_expected_tools():
-    from mcp_server.server import mcp
+    from xcpng_aiops.mcp_server.server import mcp
 
     tools = asyncio.run(mcp.list_tools())
     names = {t.name for t in tools}
@@ -160,7 +160,7 @@ def test_mcp_list_tools_exposes_expected_tools():
 @pytest.mark.unit
 def test_every_mcp_tool_is_governed_by_harness():
     """Every registered tool callable must carry the @governed_tool marker."""
-    from mcp_server import _shared
+    from xcpng_aiops.mcp_server import _shared
 
     tool_objs = _shared.mcp._tool_manager._tools
     assert EXPECTED_TOOLS <= set(tool_objs), "tool registry incomplete"
@@ -177,9 +177,9 @@ def test_risk_tiers_are_correct():
     """Irreversible snapshot delete/revert = high; every other write (including
     the metadata-only SR rescan) = medium — the descriptive risk tier each
     carries into its audit row."""
-    from mcp_server.tools import snapshots as snap_tools
-    from mcp_server.tools import srs as sr_tools
-    from mcp_server.tools import vm_actions as vm_tools
+    from xcpng_aiops.mcp_server.tools import snapshots as snap_tools
+    from xcpng_aiops.mcp_server.tools import srs as sr_tools
+    from xcpng_aiops.mcp_server.tools import vm_actions as vm_tools
 
     assert snap_tools.snapshot_delete._risk_level == "high"
     assert snap_tools.snapshot_revert._risk_level == "high"
@@ -359,7 +359,7 @@ def test_risk_level_agrees_with_read_write_docstring_tag():
     16 such mislabels line-wide once, so it is kept even though read-only mode
     (its original motivation) is gone.
     """
-    from mcp_server import server
+    from xcpng_aiops.mcp_server import server
 
     untagged, mismatched = [], []
     for name, tool in server.mcp._tool_manager._tools.items():

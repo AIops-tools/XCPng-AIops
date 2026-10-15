@@ -11,8 +11,8 @@ to compute its self-VM hint.
 
 from typing import Any, Optional
 
-from mcp_server._shared import _get_connection, mcp, tool_errors
 from xcpng_aiops.governance import governed_tool
+from xcpng_aiops.mcp_server._shared import _get_connection, mcp, tool_errors
 from xcpng_aiops.ops import vm_actions as ops
 
 _SKILL = "xcpng-aiops"

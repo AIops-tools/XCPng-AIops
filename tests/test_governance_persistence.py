@@ -128,7 +128,7 @@ def test_real_write_tool_persists_priorstate_undo(gov_home, monkeypatch):
     conn = MagicMock(name="conn")
     conn.post.return_value = "snap-real-id"
 
-    from mcp_server.tools import snapshots as gov
+    from xcpng_aiops.mcp_server.tools import snapshots as gov
 
     monkeypatch.setattr(gov, "_get_connection", lambda target=None: conn)
     result = gov.snapshot_create(vm_id="vm-1", name="snap1")

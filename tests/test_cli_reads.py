@@ -179,7 +179,7 @@ def test_dry_run_previews_print_the_call_and_never_write(patch_gov_conn, tmp_pat
     from xcpng_aiops.cli import app
 
     monkeypatch.setenv("XCPNG_AIOPS_HOME", str(tmp_path))
-    vconn = patch_gov_conn("mcp_server.tools.vm_actions")
+    vconn = patch_gov_conn("xcpng_aiops.mcp_server.tools.vm_actions")
     for cmd in (
         ["vm", "start", "vm-1", "--dry-run"],
         ["vm", "reboot", "vm-1", "--force", "--dry-run"],
@@ -193,7 +193,7 @@ def test_dry_run_previews_print_the_call_and_never_write(patch_gov_conn, tmp_pat
     ).output
     vconn.post.assert_not_called()
 
-    sconn = patch_gov_conn("mcp_server.tools.snapshots")
+    sconn = patch_gov_conn("xcpng_aiops.mcp_server.tools.snapshots")
     for cmd in (
         ["snapshot", "create", "vm-1", "nightly", "--dry-run"],
         ["snapshot", "revert", "snap-1", "--dry-run"],
@@ -204,7 +204,7 @@ def test_dry_run_previews_print_the_call_and_never_write(patch_gov_conn, tmp_pat
     sconn.post.assert_not_called()
     sconn.delete.assert_not_called()
 
-    srconn = patch_gov_conn("mcp_server.tools.srs")
+    srconn = patch_gov_conn("xcpng_aiops.mcp_server.tools.srs")
     r = runner.invoke(app, ["sr", "rescan", "sr-1", "--dry-run"])
     assert r.exit_code == 0, r.output
     assert "DRY-RUN" in r.output
