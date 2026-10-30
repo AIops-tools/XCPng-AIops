@@ -31,6 +31,8 @@ compatibility: >
 
 # XCP-ng AIops
 
+> **Audit availability:** Real writes require a durable audit intent. Reads and previews can continue if audit storage fails; check the warning and audit health before relying on their audit trail.
+
 > **Disclaimer**: This is a community-maintained open-source project and is **not affiliated with, endorsed by, or sponsored by Vates, the XCP-ng project, or the Xen Orchestra project.** "XCP-ng", "Xen Orchestra", and "Xen" are trademarks of their owners. Source code is publicly auditable at [github.com/AIops-tools/XCPng-AIops](https://github.com/AIops-tools/XCPng-AIops) under the MIT license.
 
 Governed XCP-ng operations via **Xen Orchestra's REST API** — **29 MCP tools**, every one wrapped with the bundled `@governed_tool` harness: a local unified audit log under `~/.xcpng-aiops/`, policy engine, token/runaway budget guard, undo-token recording, and descriptive risk tiers. The XO authentication token is stored **encrypted** (`~/.xcpng-aiops/secrets.enc`, Fernet + scrypt) — never plaintext on disk.
@@ -236,7 +238,7 @@ of the Xen Orchestra account whose token you connect it with (give that XO user
 a read-only ACL or scope its token down — writes then fail at Xen Orchestra).
 There is no read-only switch, policy file, or approval gate.
 
-- **Audit is the guarantee, and it is not bypassable.** Every operation — MCP and CLI alike — is logged to `~/.xcpng-aiops/audit.db` (relocatable via `XCPNG_AIOPS_HOME`): params (secrets redacted), result, status, duration, and the risk tier. The CLI writes the same row the MCP path does.
+- **Audit is the guarantee, and it is not bypassable.** Every operation — MCP and CLI alike — is logged to `~/.xcpng-aiops/audit.db` (relocatable via `XCPNG_AIOPS_HOME`): params (secrets redacted), outcome summary, status, duration, and the risk tier. The CLI writes the same row the MCP path does.
 - The XO token is stored **encrypted** in `~/.xcpng-aiops/secrets.enc` (Fernet/AES-128 + scrypt key derivation; chmod 600) — never plaintext on disk; the master password is never stored, only a per-store salt + ciphertext.
 - `XCPNG_AUDIT_APPROVED_BY` / `XCPNG_AUDIT_RATIONALE` are optional annotations recorded on the audit row (who/why); they are never required and never block.
 - **Budget / runaway guard** — a safety backstop, not authorization: caps cumulative tool calls and wall-time, and trips on tight task-poll loops.
